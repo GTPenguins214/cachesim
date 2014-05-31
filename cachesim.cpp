@@ -17,11 +17,11 @@ cache_info_t info;
  */
 void setup_cache(uint64_t c, uint64_t b, uint64_t s, char st, char r) {
 
-	printf("Got to beginning of cachesim:setup_cache\n");
+    printf("Got to beginning of cachesim:setup_cache\n");
 
-	/* Fill in the cache_info data structure */
-	info.total_bytes = 1 << c;
-	info.bytes_per_block = 1 << b;
+    /* Fill in the cache_info data structure */
+    info.total_bytes = 1 << c;
+    info.bytes_per_block = 1 << b;
     info.num_sets = 1 << s;
     info.num_lines = info.total_bytes / (info.num_sets*info.bytes_per_block);
     info.tag_bits = ADDRESS_SIZE - info.offset_bits - info.index_bits;
@@ -31,28 +31,28 @@ void setup_cache(uint64_t c, uint64_t b, uint64_t s, char st, char r) {
     info.B = b;
     info.C = c;
     switch(st) {
-    	case BLOCKING:
-    		info.ST = 0;
-    		break;
-    	case SUBBLOCKING:
-    		info.ST = 1;
-    		break;
+        case BLOCKING:
+            info.ST = 0;
+            break;
+        case SUBBLOCKING:
+            info.ST = 1;
+            break;
     }
 
     switch(r) {
-    	case LRU:
-    		info.R = 0;
-    		break;
-    	case NMRU_FIFO:
-    		info.R = 1;
-    		break;
+        case LRU:
+            info.R = 0;
+            break;
+        case NMRU_FIFO:
+            info.R = 1;
+            break;
     }
 
     /* Create the cache_set_t data structure */
     sets = new cache_set_t[info.num_sets];
 
     for (int i = 0; i < info.num_sets; i++) {
-    	sets[i].blocks = new cache_block_t[info.num_lines];
+        sets[i].blocks = new cache_block_t[info.num_lines];
     }
 
     printf("Got to end of cachesim:setup_cache\n");
@@ -73,6 +73,7 @@ void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address,
     if (rw == WRITE)
     {
         p_stats->writes++;
+
     }
     else
     {
@@ -89,8 +90,8 @@ void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address,
  */
 void complete_cache(cache_stats_t *p_stats) {
 
-	for (int i = 0; i < info.num_sets; i++) {
-		delete[] sets[i].blocks;
-	}
-	delete[] sets;
+    for (int i = 0; i < info.num_sets; i++) {
+        delete[] sets[i].blocks;
+    }
+    delete[] sets;
 }
