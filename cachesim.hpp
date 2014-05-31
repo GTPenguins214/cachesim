@@ -46,9 +46,9 @@ static const char     WRITE = 'w';
 
 /** My own additions */
 
-static const uint64_t ADDRESS_SIZE = 64; /* number of bits for an address*/
+static const int ADDRESS_SIZE = 64; /* number of bits for an address*/
 
-typedef int address_t; /* An address */
+typedef uint64_t address_t; /* An address */
 
 /* Info for the cache */
 struct cache_info_t {
@@ -62,8 +62,8 @@ struct cache_info_t {
     uint64_t S;
     uint64_t B;
     int C;
-    char ST;
-    char R;
+    int ST;
+    int R;
 };
 
 /* Overhead */
@@ -71,6 +71,15 @@ static const int blocking_bits = 1;
 static const int subblocking_bits = 2;
 static const int lru_bits = 8;
 static const int nmru_fifo_bits = 2;
+
+/*  
+The valid bit will be a 3 bit number.
+    Bit 0 will be used in blocking
+    Bit 1 will be used in subblocking, it
+        will be the first half
+    Bit 2 will also be used in sublocking,
+        it will be the second half
+*/
 
 /* Cache block data structure */
 struct cache_block_t {
@@ -80,7 +89,10 @@ struct cache_block_t {
     int num_lru;
     int mru;
     int num_fifo;
+};
 
-}
+struct cache_set_t {
+    cache_block_t *blocks;
+};
 
 #endif /* CACHESIM_HPP */
