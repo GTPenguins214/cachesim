@@ -20,9 +20,15 @@ struct cache_stats_t {
     double   storage_overhead_ratio;
 };
 
-void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address, cache_stats_t* p_stats);
+typedef uint64_t address_t; /* An address */
+
+int parse_address(address_t address, char part);
 void setup_cache(uint64_t c, uint64_t b, uint64_t s, char st, char r);
+void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address, cache_stats_t* p_stats);
+int cache_write(int index, char numOfBytes, address_t address, cache_stats_t* p_stats);
+int cache_read(int index, char numOfBytes, address_t address, cache_stats_t* p_stats);
 void complete_cache(cache_stats_t *p_stats);
+void update_overhead(int block_ind, uint64_t index);
 
 static const uint64_t DEFAULT_C = 15;   /* 32KB Cache */
 static const uint64_t DEFAULT_B = 5;    /* 32-byte blocks */
@@ -48,22 +54,21 @@ static const char     WRITE = 'w';
 
 static const int ADDRESS_SIZE = 64; /* number of bits for an address*/
 
-typedef uint64_t address_t; /* An address */
-
 /* Info for the cache */
 struct cache_info_t {
+    int num_processors;
     uint64_t total_bytes;
     uint64_t bytes_per_block;
+    uint64_t num_blocks_set;
     uint64_t num_sets;
-    uint64_t num_lines;
     uint64_t tag_bits;
     uint64_t index_bits;
     uint64_t offset_bits;
     uint64_t S;
     uint64_t B;
     int C;
-    int ST;
-    int R;
+    bool ST;
+    bool R;
 };
 
 /* Overhead */
@@ -72,27 +77,25 @@ static const int subblocking_bits = 2;
 static const int lru_bits = 8;
 static const int nmru_fifo_bits = 2;
 
-/*  
-The valid bit will be a 3 bit number.
-    Bit 0 will be used in blocking
-    Bit 1 will be used in subblocking, it
-        will be the first half
-    Bit 2 will also be used in sublocking,
-        it will be the second half
-*/
-
 /* Cache block data structure */
 struct cache_block_t {
     address_t tag;
-    int dirty;
-    int valid;
+    bool dirty;
+    bool valid;
+    bool valid_first;
+    bool valid_second;
     int num_lru;
-    int mru;
     int num_fifo;
+    int mru;
 };
 
 struct cache_set_t {
     cache_block_t *blocks;
+};
+
+struct cache_t {
+    cache_set_t *sets;
+    unsigned int ctid;
 };
 
 #endif /* CACHESIM_HPP */
