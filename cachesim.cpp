@@ -8,7 +8,7 @@ vector <cache_t> cache;
 cache_info_t info;
 int ctid_init = 1;
 
-int parse_address(address_t addr, char part) {
+uint64_t parse_address(address_t addr, char part) {
 
     address_t ret_addr;
 
@@ -32,8 +32,23 @@ int parse_address(address_t addr, char part) {
     return ret_addr;
 }
 
-void update_overhead(int block_ind, uint64_t set_ind) { 
+void update_overhead(int cache_ind, int block_ind, uint64_t set_ind) { 
+    printf("%s", info.R ? "true" : "false");
+    if (info.R = true) { /* LRU */
+        printf("Got Here\n");
+        // int old_lru = cache[cache_ind].sets[set_ind].blocks[block_ind].num_lru;
 
+        // for (int i = 0; i < info.num_blocks_set; i++) {
+        //     if (cache[cache_ind].sets[set_ind].blocks[block_ind].num_lru > old_lru) 
+        //         cache[cache_ind].sets[set_ind].blocks[block_ind].num_lru -= 1;
+        //     if (i = block_ind)
+        //         cache[cache_ind].sets[set_ind].blocks[block_ind].num_lru = 
+        //             info.num_blocks_set - 1;
+        // }
+    }
+    else { /* NMRU-FIFO */
+        printf("Got Here1\n");
+    }
 }
 
 /**
@@ -49,7 +64,7 @@ void update_overhead(int block_ind, uint64_t set_ind) {
  */
 void setup_cache(uint64_t c, uint64_t b, uint64_t s, char st, char r) {
 
-    if (ctid_init) {
+    if (ctid_init == 1) {
         /* Fill in the cache_info data structure */
         info.total_bytes = (uint64_t) ((uint64_t)1 << c);
         info.bytes_per_block = (uint64_t) ((uint64_t)1 << b);
@@ -64,6 +79,8 @@ void setup_cache(uint64_t c, uint64_t b, uint64_t s, char st, char r) {
         info.ST = (st == 'S') ? true : false; /* true = sub, false = block */
         info.R = (r == 'L') ? true : false; /* true = lru, false = fifo */
 
+        printf("info.ST: %s\n", info.ST ? "true" : "false");
+        printf("info.R: %s\n", info.R ? "true" : "false");
         printf("Total Bytes %" PRIu64 "\n", info.total_bytes);
         printf("Bytes Per Block %" PRIu64 "\n", info.bytes_per_block);
         printf("Num Sets %" PRIu64 "\n", info.num_blocks_set);
@@ -76,14 +93,14 @@ void setup_cache(uint64_t c, uint64_t b, uint64_t s, char st, char r) {
 
     info.num_processors += 1;
 
-    cache_t temp;
-    temp.ctid = 0;
+    cache_t one_cache;
+    one_cache.ctid = 0;
 
     /* Create the cache set_t data structure */
-    cache_set_t sets[info.num_sets];
-
+    vector <cache_set_t> sets(info.num_sets);
     for (int i = 0; i < info.num_sets; i++) {
-        sets[i].blocks = new cache_block_t[info.num_blocks_set];
+        vector <cache_block_t> blocks(info.num_blocks_set);
+        sets[i].blocks = blocks;
         for (int j = 0; j < info.num_blocks_set; j++) {
             sets[i].blocks[j].tag = -1;
             sets[i].blocks[j].dirty = false;
@@ -96,9 +113,9 @@ void setup_cache(uint64_t c, uint64_t b, uint64_t s, char st, char r) {
         }
     }
 
-    temp.sets = sets;
+    one_cache.sets = sets;
 
-    cache.push_back(temp);
+    cache.push_back(one_cache);
 
 }
 
@@ -120,6 +137,9 @@ void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address,
         ctid_init = 0;
     }
 
+    if (numOfBytes > info.bytes_per_block)
+        printf("numOfBytes: %u\n", numOfBytes);
+
     /* Go through the vector and see if we already have the ctid */
     for (int i = 0; i < cache.size(); i++) {
         /* if we have it then just set the index */
@@ -133,6 +153,9 @@ void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address,
         setup_cache(info.C, info.B, info.S, info.ST, info.R);
         cache[index = cache.size()-1].ctid = ctid;
     }
+
+    /* Figure out if the number of bytes spans multiple cache lines */
+    if (numOfBytes)
 
     p_stats->accesses++;
     
@@ -175,15 +198,15 @@ int cache_read(int cache_index, char numOfBytes, address_t address, cache_stats_
     /**/
 
     /* Loop through the cache */
-    for (int i = 0; i < info.num_sets; i++) {
-        if (cache[cache_index].sets[i].blocks[index].tag == tag) {
-            if (cache[cache_index].sets[i].blocks[index].valid) {
-                update_overhead(i, index);
+    for (int i = 0; i < info.num_blocks_set; i++) {
+        if (cache[cache_index].sets[index].blocks[i].tag == tag) {
+            if (cache[cache_index].sets[i].blocks[i].valid) {
+                update_overhead(cache_index, i, index);
             }
         }
     }
 
-    printf("miss\n");
+    //printf("miss\n");
 
     return retVal;
 }
@@ -200,6 +223,13 @@ void complete_cache(cache_stats_t *p_stats) {
     for (int i = 0; i < cache.size(); i++) {
         printf("Index: %d\t", i);
         printf("CTID: %u\n", cache[i].ctid);
+    }
+
+    for (int i = 0; i < info.num_processors; i++) {
+        for (int j = 0; j < info.num_sets; j++) {
+            cache[i].sets[j].blocks.clear();
+        }
+        cache[i].sets.clear();
     }
 
     cache.clear();

@@ -1,2 +1,4 @@
 ./cachesim
 *.o
+scenario.txt
+cachesim

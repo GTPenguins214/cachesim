@@ -2,6 +2,9 @@
 #define CACHESIM_HPP
 
 #include <cinttypes>
+#include <vector>
+
+using std::vector;
 
 struct cache_stats_t {
     uint64_t accesses;
@@ -22,13 +25,13 @@ struct cache_stats_t {
 
 typedef uint64_t address_t; /* An address */
 
-int parse_address(address_t address, char part);
+uint64_t parse_address(address_t address, char part);
 void setup_cache(uint64_t c, uint64_t b, uint64_t s, char st, char r);
 void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address, cache_stats_t* p_stats);
 int cache_write(int index, char numOfBytes, address_t address, cache_stats_t* p_stats);
 int cache_read(int index, char numOfBytes, address_t address, cache_stats_t* p_stats);
 void complete_cache(cache_stats_t *p_stats);
-void update_overhead(int block_ind, uint64_t index);
+void update_overhead(int cache_index, int block_ind, uint64_t set_ind);
 
 static const uint64_t DEFAULT_C = 15;   /* 32KB Cache */
 static const uint64_t DEFAULT_B = 5;    /* 32-byte blocks */
@@ -90,11 +93,11 @@ struct cache_block_t {
 };
 
 struct cache_set_t {
-    cache_block_t *blocks;
+    vector <cache_block_t> blocks;
 };
 
 struct cache_t {
-    cache_set_t *sets;
+    vector <cache_set_t> sets;
     unsigned int ctid;
 };
 
