@@ -28,10 +28,11 @@ typedef uint64_t address_t; /* An address */
 uint64_t parse_address(address_t address, char part);
 void setup_cache(uint64_t c, uint64_t b, uint64_t s, char st, char r);
 void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address, cache_stats_t* p_stats);
-int cache_write(int index, char numOfBytes, address_t address, cache_stats_t* p_stats);
-int cache_read(int index, char numOfBytes, address_t address, cache_stats_t* p_stats);
+void cache_write(int index, char numOfBytes, address_t address, cache_stats_t* p_stats);
+void cache_read(int index, char numOfBytes, address_t address, cache_stats_t* p_stats);
 void complete_cache(cache_stats_t *p_stats);
 void update_overhead(int cache_index, int block_ind, uint64_t set_ind);
+int get_replacement_block(int cache_ind, int set_ind);
 
 static const uint64_t DEFAULT_C = 15;   /* 32KB Cache */
 static const uint64_t DEFAULT_B = 5;    /* 32-byte blocks */
@@ -70,7 +71,7 @@ struct cache_info_t {
     uint64_t S;
     uint64_t B;
     int C;
-    bool ST;
+    bool ST; /* true = lru, false = fifo */
     bool R;
 };
 
@@ -88,8 +89,8 @@ struct cache_block_t {
     bool valid_first;
     bool valid_second;
     int num_lru;
-    int num_fifo;
-    int mru;
+    int num_fifo; /* 0 is first in */
+    bool mru;
 };
 
 struct cache_set_t {
