@@ -34,7 +34,9 @@ uint64_t parse_address(address_t addr, char part) {
 }
 
 void update_overhead(int cache_ind, int block_ind, uint64_t set_ind, bool replaced) { 
-    //printf("%s", info.R ? "true" : "false");
+    
+    printf("Index: %d\n", block_ind);
+
     if (info.R == true) { /* LRU */
         //printf("In LRU\n");
         int old_lru = cache[cache_ind].sets[set_ind].blocks[block_ind].num_lru;
@@ -52,10 +54,11 @@ void update_overhead(int cache_ind, int block_ind, uint64_t set_ind, bool replac
         //printf("In FIFO\n");
         for (int i = 0; i < info.num_blocks_set; i = i + 1) {
             //printf("i: %d\n", i);
-            if (cache[cache_ind].sets[set_ind].blocks[block_ind].mru)
-                cache[cache_ind].sets[set_ind].blocks[block_ind].mru = false;
             if (i == block_ind) {
                 cache[cache_ind].sets[set_ind].blocks[block_ind].mru = true;
+            }
+            else {
+                cache[cache_ind].sets[set_ind].blocks[i].mru = false;
             }
         }
         if (replaced) {
@@ -284,7 +287,6 @@ void cache_read(int cache_index, char numOfBytes, address_t address, cache_stats
     printf("NumAccess: %d\n", num_to_access);
     /**/                                
 
-    int hit_count = 0;
     int new_index = 0;
     int i, j;
 
@@ -334,7 +336,7 @@ void cache_read(int cache_index, char numOfBytes, address_t address, cache_stats
                     need to update that one too. It will be another miss */
                     if (offset + numOfBytes > half) {
                         cache[cache_index].sets[new_index].blocks[ind].valid_second = true;
-                        p_stats->read_misses += 1;
+                        //p_stats->read_misses += 1;
                     }
                 }
                 else {
@@ -348,6 +350,20 @@ void cache_read(int cache_index, char numOfBytes, address_t address, cache_stats
             cache[cache_index].sets[new_index].blocks[ind].valid = true;
             cache[cache_index].sets[new_index].blocks[ind].dirty = false;
             update_overhead(cache_index, ind, new_index, true);
+
+            /* Debug: Print set */
+            printf("Set[%d]\n", new_index);
+            for (int i = 0; i < info.num_blocks_set; i++) {
+                printf("\tBlock[%d]", i);
+                printf("\t\tTag: %" PRIu64 "\n", cache[cache_index].sets[new_index].blocks[i].tag);
+                if (cache[cache_index].sets[new_index].blocks[i].mru)
+                    printf("\t\tMRU: true\n");
+                else
+                    printf("\t\tMRU: false\n");
+                printf("\t\tNum_FIFO: %d\n", cache[cache_index].sets[new_index].blocks[i].num_fifo);
+            }
+            /**/
+
         }
     }
 }
