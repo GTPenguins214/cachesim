@@ -105,13 +105,14 @@ int main(int argc, char* argv[]) {
         
         if (isWrite) rw = WRITE;
         
-        cache_access(ctid, rw, numOfBytes, address, &stats); 
+        count += 1;
+        ///printf("Access: %d", count);
+        cache_access(ctid, rw, numOfBytes, address, &stats);
+        ///printf("\n");
 
-        if (count == 100) {
-            break;
-        }
-        else
-            count += 1;
+        ///if (count == 240000)
+            ///break; 
+
     }
 
     complete_cache(&stats);

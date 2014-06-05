@@ -35,6 +35,7 @@ void cache_read(int ctid, int cache_index, uint64_t tag, uint64_t index,
                 uint64_t offset, cache_stats_t* p_stats);
 void complete_cache(cache_stats_t *p_stats);
 void update_policy(int cache_index, uint64_t set_ind, int block_ind);
+int get_replacement_block(int cache_index, uint64_t set_ind);
 
 static const uint64_t DEFAULT_C = 15;   /* 32KB Cache */
 static const uint64_t DEFAULT_B = 5;    /* 32-byte blocks */

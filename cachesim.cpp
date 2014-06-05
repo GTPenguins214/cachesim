@@ -1,6 +1,7 @@
 #include <vector>
 #include <stdio.h>
 #include <math.h>
+#include <assert.h>
 #include "cachesim.hpp"
 
 using std::vector;
@@ -35,24 +36,37 @@ uint64_t parse_address(address_t addr, char part) {
 
 void update_policy(int cache_ind, uint64_t set_ind, int block_ind) {
     if (info.R = true) { /* LRU */
-        printf("LRU\n");
+        ///printf("LRU\n");
         int old_lru = cache[cache_ind].sets[set_ind].blocks[block_ind].num_lru;
 
         for (int i = 0; i < info.num_blocks_set; i++) {
             if (cache[cache_ind].sets[set_ind].blocks[i].num_lru > old_lru) {
                 cache[cache_ind].sets[set_ind].blocks[i].num_lru -= 1;
-                printf("Block %d is %d\n", i, cache[cache_ind].sets[set_ind].blocks[i].num_lru);
+                ///printf("Block %d is %d\n", i, cache[cache_ind].sets[set_ind].blocks[i].num_lru);
             }
             if (i == block_ind) {
                 cache[cache_ind].sets[set_ind].blocks[block_ind].num_lru = 
                     info.num_blocks_set - 1;
-                printf("Block %d is %d\n", i, cache[cache_ind].sets[set_ind].blocks[i].num_lru);
+                ///printf("Block %d is %d\n", i, cache[cache_ind].sets[set_ind].blocks[i].num_lru);
             }
         }
     }
     else { /* NMRU-FIFO */
-        printf("NMRU-FIFO\n");
+        ///printf("NMRU-FIFO\n");
     }
+}
+
+int get_replacement_block(int cache_ind, uint64_t set_ind) {
+
+    /* Get the first block with an LRU of 0 */
+    for (int i = 0; i < info.num_blocks_set; i++) {
+        if (cache[cache_ind].sets[set_ind].blocks[i].num_lru == 0)
+            return i;
+    }
+
+    /* Throw an asser */
+    printf("\nREPLACEMENT ALGORITHM FAILED!!!!\n");
+    assert(false);
 }
 
 /**
@@ -165,12 +179,14 @@ void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address,
     int num_set_access = (int) ceil(((double) offset + (double) numOfBytes) /
                             (double) info.bytes_per_block);
 
+    ///printf("NumAccess: %d\t", num_set_access);
+
     p_stats->accesses++;
     
     if (rw == WRITE)
     {
         /* Debug */
-        
+        /*
         printf("\nWrite\n");
         printf("CTID: %d\n", ctid);
         printf("Tag: %" PRIu64 "\t", tag);
@@ -185,15 +201,15 @@ void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address,
         /* Call the function as many times as num_set_access */
         for (int i = 0; i < num_set_access; i++) {
             int set_ind = (i + index) % info.num_sets;
-            printf("Set Index: %d\n", set_ind);
-            cache_write(cache_ind, tag, set_ind, offset, p_stats);
+            ///printf("Set Index: %d\n", set_ind);
+            cache_write(ctid, cache_ind, tag, set_ind, offset, p_stats);
         }
         
     }
     else
     {
         /* Debug */
-        
+        /*
         printf("\nRead\n");
         printf("CTID: %d\n", ctid);
         printf("Tag: %" PRIu64 "\t", tag);
@@ -208,14 +224,58 @@ void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address,
         /* Call the function as many times as num_set_access */
         for (int i = 0; i < num_set_access; i++) {
             int set_ind = (i + index) % info.num_sets;
-            printf("Set Index; %d\n", set_ind);
-            cache_read(cache_ind, tag, set_ind, offset, p_stats);
+            ///printf("Set Index; %d\n", set_ind);
+            cache_read(ctid, cache_ind, tag, set_ind, offset, p_stats);
         }
     }
 }
 
 void cache_write(int ctid, int cache_ind, uint64_t tag, uint64_t index, 
                  uint64_t offset, cache_stats_t* p_stats) {
+
+    bool missed = true; /* Assume we miss */
+
+    /* Loop through the blocks in the set and see if we have a hit */
+    for (int i = 0; i < info.num_blocks_set; i++ ) {
+        /* Get the tag and compare */
+        if (cache[cache_ind].sets[index].blocks[i].tag == tag &&
+            cache[cache_ind].sets[index].blocks[i].valid) {
+
+            /* Debug */
+            ///printf("Write Hit\t");
+
+            /* Update the replacement policy */
+            update_policy(cache_ind, index, i);
+
+            /* Set the block to dirty */
+            cache[cache_ind].sets[index].blocks[i].dirty = true;
+            missed = false;
+            break;
+        }
+    }
+
+    if (missed) {
+
+        /* Debug */
+        ///printf("Write Miss\t");
+
+        /* Update the stats */
+        /* If it is the 0th CPU then add it to write_misses */
+        if (ctid == 0)
+            p_stats->write_misses += 1;
+        p_stats->write_misses_combined += 1;
+
+        /* Get a replacement block */
+        int i = get_replacement_block(cache_ind, index);
+
+        /* Replace the block */
+        cache[cache_ind].sets[index].blocks[i].tag = tag;
+        cache[cache_ind].sets[index].blocks[i].valid = true;
+        cache[cache_ind].sets[index].blocks[i].dirty = false;
+
+        /* Update the replacement policy */
+        update_policy(cache_ind, index, i);
+    }
 
 }
 
@@ -229,6 +289,10 @@ void cache_read(int ctid, int cache_ind, uint64_t tag, uint64_t index,
         /* Get the tag and compare */
         if (cache[cache_ind].sets[index].blocks[i].tag == tag &&
             cache[cache_ind].sets[index].blocks[i].valid) {
+
+            /* Debug */
+            ///printf("Read Hit\t");
+
             /* Update the replacement policy */
             update_policy(cache_ind, index, i);
             missed = false;
@@ -238,11 +302,15 @@ void cache_read(int ctid, int cache_ind, uint64_t tag, uint64_t index,
 
     /* If it is a miss then we need to do some work */
     if (missed) {
+
+        /* Debug */
+        ///printf("Read Miss\t");
+
         /* Update the stats */
         /* If it is the 0th CPU then add it to read_misses */
         if (ctid == 0)
-            stats->read_misses += 1;
-        stats->read_misses_combined += 1;
+            p_stats->read_misses += 1;
+        p_stats->read_misses_combined += 1;
 
         /* Get a replacement block */
         int i = get_replacement_block(cache_ind, index);
@@ -266,11 +334,6 @@ void cache_read(int ctid, int cache_ind, uint64_t tag, uint64_t index,
  * @p_stats Pointer to the statistics structure
  */
 void complete_cache(cache_stats_t *p_stats) {
-
-    for (int i = 0; i < cache.size(); i++) {
-        printf("Index: %d\t", i);
-        printf("CTID: %u\n", cache[i].ctid);
-    }
 
     for (int i = 0; i < info.num_processors; i++) {
         for (int j = 0; j < info.num_sets; j++) {
