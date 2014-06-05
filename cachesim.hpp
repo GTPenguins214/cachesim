@@ -30,9 +30,9 @@ void setup_cache(uint64_t c, uint64_t b, uint64_t s, char st, char r);
 void cache_access(unsigned int ctid, char rw, char numOfBytes, 
                     uint64_t address, cache_stats_t* p_stats);
 void cache_write(int ctid, int cache_index, uint64_t tag, uint64_t index, 
-                uint64_t offset, cache_stats_t* p_stats);
+                uint64_t offset, int numOfBytes, cache_stats_t* p_stats);
 void cache_read(int ctid, int cache_index, uint64_t tag, uint64_t index, 
-                uint64_t offset, cache_stats_t* p_stats);
+                uint64_t offset, int numOfBytes, cache_stats_t* p_stats);
 void complete_cache(cache_stats_t *p_stats);
 void update_policy(int cache_index, uint64_t set_ind, int block_ind);
 int get_replacement_block(int cache_index, uint64_t set_ind);

@@ -106,12 +106,12 @@ int main(int argc, char* argv[]) {
         if (isWrite) rw = WRITE;
         
         count += 1;
-        ///printf("Access: %d", count);
+        ///printf("\nAccess: %d\n", count);
         cache_access(ctid, rw, numOfBytes, address, &stats);
         ///printf("\n");
 
-        ///if (count == 240000)
-            ///break; 
+        if (count == 2400000)
+            break; 
 
     }
 
