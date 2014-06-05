@@ -133,7 +133,7 @@ void setup_cache(uint64_t c, uint64_t b, uint64_t s, char st, char r) {
  */
 void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address, cache_stats_t* p_stats) {
 
-    int cache_index = -1;
+    int cache_ind = -1;
 
     /* For the first access, we have the data structure but the ctid not filled in */
     if (ctid_init == 1) {
@@ -145,15 +145,15 @@ void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address,
     for (int i = 0; i < cache.size(); i++) {
         /* if we have it then just set the index */
         if (cache[i].ctid == ctid) {
-            cache_index = i;
+            cache_ind = i;
             break;
         }
     }
 
     /* if we don't have it already then we need to create it */
-    if (cache_index == -1) {
+    if (cache_ind == -1) {
         setup_cache(info.C, info.B, info.S, info.ST, info.R);
-        cache[cache_index = cache.size()-1].ctid = ctid;
+        cache[cache_ind = cache.size()-1].ctid = ctid;
     }
 
     /* Get the tag, index and offset */
@@ -184,9 +184,9 @@ void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address,
 
         /* Call the function as many times as num_set_access */
         for (int i = 0; i < num_set_access; i++) {
-            int set_index = (i + index) % info.num_sets;
-            printf("Set Index: %d\n", set_index);
-            cache_write(cache_index, tag, set_index, offset, p_stats);
+            int set_ind = (i + index) % info.num_sets;
+            printf("Set Index: %d\n", set_ind);
+            cache_write(cache_ind, tag, set_ind, offset, p_stats);
         }
         
     }
@@ -207,20 +207,54 @@ void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address,
 
         /* Call the function as many times as num_set_access */
         for (int i = 0; i < num_set_access; i++) {
-            int set_index = (i + index) % info.num_sets;
-            printf("Set Index; %d\n", set_index);
-            cache_read(cache_index, tag, set_index, offset, p_stats);
+            int set_ind = (i + index) % info.num_sets;
+            printf("Set Index; %d\n", set_ind);
+            cache_read(cache_ind, tag, set_ind, offset, p_stats);
         }
     }
 }
 
-void cache_write(int cache_index, uint64_t tag, uint64_t index, 
-                    uint64_t offset, cache_stats_t* p_stats) {
+void cache_write(int ctid, int cache_ind, uint64_t tag, uint64_t index, 
+                 uint64_t offset, cache_stats_t* p_stats) {
 
 }
 
-void cache_read(int cache_index, uint64_t tag, uint64_t index, 
-                    uint64_t offset, cache_stats_t* p_stats) {
+void cache_read(int ctid, int cache_ind, uint64_t tag, uint64_t index, 
+                uint64_t offset, cache_stats_t* p_stats) {
+
+    bool missed = true; /* Assume we miss */
+
+    /* Loop through the blocks in the set and see if we have a hit */
+    for (int i = 0; i < info.num_blocks_set; i++) {
+        /* Get the tag and compare */
+        if (cache[cache_ind].sets[index].blocks[i].tag == tag &&
+            cache[cache_ind].sets[index].blocks[i].valid) {
+            /* Update the replacement policy */
+            update_policy(cache_ind, index, i);
+            missed = false;
+            break;
+        }
+    }
+
+    /* If it is a miss then we need to do some work */
+    if (missed) {
+        /* Update the stats */
+        /* If it is the 0th CPU then add it to read_misses */
+        if (ctid == 0)
+            stats->read_misses += 1;
+        stats->read_misses_combined += 1;
+
+        /* Get a replacement block */
+        int i = get_replacement_block(cache_ind, index);
+
+        /* Replace the block */
+        cache[cache_ind].sets[index].blocks[i].tag = tag;
+        cache[cache_ind].sets[index].blocks[i].valid = true;
+        cache[cache_ind].sets[index].blocks[i].dirty = false;
+
+        /* Update the replacement policy */
+        update_policy(cache_ind, index, i);
+    }
 
 }
 

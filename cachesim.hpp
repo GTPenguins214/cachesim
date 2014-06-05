@@ -27,10 +27,11 @@ typedef uint64_t address_t; /* An address */
 
 uint64_t parse_address(address_t address, char part);
 void setup_cache(uint64_t c, uint64_t b, uint64_t s, char st, char r);
-void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address, cache_stats_t* p_stats);
-void cache_write(int cache_index, uint64_t tag, uint64_t index, 
+void cache_access(unsigned int ctid, char rw, char numOfBytes, 
+                    uint64_t address, cache_stats_t* p_stats);
+void cache_write(int ctid, int cache_index, uint64_t tag, uint64_t index, 
                 uint64_t offset, cache_stats_t* p_stats);
-void cache_read(int cache_index, uint64_t tag, uint64_t index, 
+void cache_read(int ctid, int cache_index, uint64_t tag, uint64_t index, 
                 uint64_t offset, cache_stats_t* p_stats);
 void complete_cache(cache_stats_t *p_stats);
 void update_policy(int cache_index, uint64_t set_ind, int block_ind);
