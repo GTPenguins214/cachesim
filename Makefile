@@ -10,4 +10,4 @@ cachesim: $(OBJECTS)
 
 clean:
 	rm -f cachesim *.o
-	rm -f out.txt
+	rm -f *.txt

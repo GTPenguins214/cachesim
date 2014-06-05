@@ -53,6 +53,7 @@ void update_overhead(int cache_ind, int block_ind, uint64_t set_ind, bool replac
         for (int i = 0; i < info.num_blocks_set; i = i + 1) {
             //printf("i: %d\n", i);
             if (i == block_ind) {
+                ///printf("Changing block %d to mru\n", block_ind);
                 cache[cache_ind].sets[set_ind].blocks[block_ind].mru = true;
             }
             else {
@@ -60,6 +61,7 @@ void update_overhead(int cache_ind, int block_ind, uint64_t set_ind, bool replac
             }
         }
         if (replaced) {
+            ///printf("Changing block %d to num_fifo=%d\n", block_ind, (int) info.num_blocks_set-1);
             cache[cache_ind].sets[set_ind].blocks[block_ind].num_fifo = 
                 info.num_blocks_set -1;
         }
@@ -112,17 +114,41 @@ int get_replacement_block(int cache_ind, int set_ind) {
         decrement_start_ind = cache[cache_ind].sets[set_ind].blocks[first].mru == true ? 2 : 1;
         for (int i = 0; i < info.num_blocks_set; i++) {
             /* Decrement all blocks depending on whether MRU is set or not */
-            if (cache[cache_ind].sets[set_ind].blocks[i].num_fifo >= decrement_start_ind)
+            if (cache[cache_ind].sets[set_ind].blocks[i].num_fifo >= decrement_start_ind) {
                 cache[cache_ind].sets[set_ind].blocks[i].num_fifo -= 1;
+                ///printf("Changing block %d to num_fifo = %d\n", i,
+                    ///cache[cache_ind].sets[set_ind].blocks[i].num_fifo);
+            }
         }
+
+        /*
+        printf("Set[%d]\n", set_ind);
+        for (int i = 0; i < info.num_blocks_set; i++) {
+            printf("\tBlock[%d]", i);
+            printf("\t\tTag: %" PRIu64 "\n", cache[cache_ind].sets[set_ind].blocks[i].tag);
+            if (cache[cache_ind].sets[set_ind].blocks[i].mru)
+                printf("\t\tMRU: true\n");
+            else
+                printf("\t\tMRU: false\n");
+            printf("\t\tNum_FIFO: %d\n", cache[cache_ind].sets[set_ind].blocks[i].num_fifo);
+            if (cache[cache_ind].sets[set_ind].blocks[i].valid)
+                printf("\t\tValid: true\n");
+            else
+                printf("\t\tValid:false\n");
+            if (cache[cache_ind].sets[set_ind].blocks[i].dirty)
+                printf("\t\tDirty: true\n");
+            else
+                printf("\t\tDirty: false\n")
+        }
+        /**/
 
         /* Debug */
         if (decrement_start_ind == 1) {
-            //printf("Replace Block: %d\n", first);
+            ///printf("Replace Block: %d\n", first);
             return first;
         }
         else {
-            //printf("Replace Block: %d\n", second);
+            ///printf("Replace Block: %d\n", second);
             return second;
         }
     }
@@ -226,7 +252,7 @@ void setup_cache(uint64_t c, uint64_t b, uint64_t s, char st, char r) {
  */
 void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address, cache_stats_t* p_stats) {
 
-    int index = -1;
+    int cache_index = -1;
 
     /* For the first access, we have the data structure but the ctid not filled in */
     if (ctid_init == 1) {
@@ -238,29 +264,40 @@ void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address,
     for (int i = 0; i < cache.size(); i++) {
         /* if we have it then just set the index */
         if (cache[i].ctid == ctid) {
-            index = i;
+            cache_index = i;
             break;
         }
     }
 
     /* if we don't have it already then we need to create it */
-    if (index == -1) {
+    if (cache_index == -1) {
         setup_cache(info.C, info.B, info.S, info.ST, info.R);
-        cache[index = cache.size()-1].ctid = ctid;
+        cache[cache_index = cache.size()-1].ctid = ctid;
     }
+
+    /* Decode the tag, index, and offset */
+    uint64_t tag = parse_address(address, 't');
+    uint64_t index = parse_address(address, 'i');
+    uint64_t offset = parse_address(address, 'o');
+
+    /* Figure out how many accesses we actually have because
+        of the number of bytes we need */
+    int num_accesses = (int) ceil(((double) offset + (double) numOfBytes) /
+                            (double) info.bytes_per_block);
 
     p_stats->accesses++;
 
     if (rw == WRITE) {
-        //printf("\nCache Write\n");
+        ///printf("\nCache Write\n");
         p_stats->writes++;
-        cache_write(index, numOfBytes, address, p_stats);
+        cache_write(cache_index, numOfBytes, address, p_stats);
     }
     else {
-        //printf("\nCache Read\n");
+        ///printf("\nCache Read\n");
         p_stats->reads++;
-        cache_read(index, numOfBytes, address, p_stats);
+        cache_read(cache_index, numOfBytes, address, p_stats);
     }
+
 }
 
 void cache_write(int cache_index, char numOfBytes, address_t address, cache_stats_t* p_stats) {
@@ -273,17 +310,18 @@ void cache_write(int cache_index, char numOfBytes, address_t address, cache_stat
     /* May need to access multiple sets */
     int num_to_access = (int) ceil(((double) offset + (double) numOfBytes) /
                             (double) info.bytes_per_block);
-    /*
-    printf("CTID: %u\n", cache[cache_index].ctid);
+    
+    ///printf("CTID: %u\n", cache[cache_index].ctid);
     //printf("Address: %" PRIu64 "\n", address);
-    printf("Tag: %" PRIu64 "\n", tag);
-    printf("Index: %" PRIu64 "\n", index);
-    printf("Offset: %" PRIu64 "\n", offset);
-    printf("NumBytes: %d\n", numOfBytes);
-    printf("NumAccess: %d\n", num_to_access);
+    ///printf("Tag: %" PRIu64 "\n", tag);
+    ///printf("Index: %" PRIu64 "\n", index);
+    ///printf("Offset: %" PRIu64 "\n", offset);
+    ///printf("NumBytes: %d\n", numOfBytes);
+    ///printf("NumAccess: %d\n", num_to_access);
     /**/ 
 
     int new_index; // The index of the set.
+    bool alreadyMissed = false;
 
     /* access each set consecutively */
     for (int i = 0; i < num_to_access; i++) {
@@ -291,11 +329,15 @@ void cache_write(int cache_index, char numOfBytes, address_t address, cache_stat
 
         new_index = (i+index) % info.num_sets;
 
+        ///printf("Access: %d\n", new_index);
+
         for (int j = 0; j < info.num_blocks_set; j++) {
+            ///printf("Block: %d\n", j);
             if (cache[cache_index].sets[new_index].blocks[j].tag == tag) {
                 if (cache[cache_index].sets[new_index].blocks[j].valid) {
-                    //printf("Hit in Block: %d\n", j);
+                    ///printf("Write Hit in Block: %d\n", j);
                     update_overhead(cache_index, j, (uint64_t) new_index, false);
+                    ///printf("Changing Block %d to dirty\n", j);
                     cache[cache_index].sets[new_index].blocks[j].dirty = true;
                     missed = false;
                     break;
@@ -304,13 +346,16 @@ void cache_write(int cache_index, char numOfBytes, address_t address, cache_stat
         }
 
         if (missed) {
-            //printf("Miss\n");
+            ///printf("Write Miss\n");
 
             /* Update the stats */
-            p_stats->write_misses_combined += 1;
-            p_stats->misses += 1;
-            if (cache_index == 0)
-                p_stats->write_misses +=1;
+            if (!alreadyMissed) {
+                p_stats->write_misses_combined += 1;
+                p_stats->misses += 1;
+                if (cache_index == 0)
+                    p_stats->write_misses +=1;
+                alreadyMissed = true;
+            }
 
             /* Get a cache to replace */
             int ind = get_replacement_block(cache_index, new_index);
@@ -329,7 +374,9 @@ void cache_write(int cache_index, char numOfBytes, address_t address, cache_stat
                     need to update that one too. It will be another miss */
                     if (offset + numOfBytes > half) {
                         cache[cache_index].sets[new_index].blocks[ind].valid_second = true;
-                        p_stats->write_misses += 1;
+                        if (cache_index == 0)
+                            p_stats->write_misses += 1;
+                        p_stats->write_misses_combined += 1;
                     }
                 }
                 else {
@@ -338,8 +385,10 @@ void cache_write(int cache_index, char numOfBytes, address_t address, cache_stat
                 }
             }
             else {
+                ///printf("Changing block %d to valid\n", ind);
                 cache[cache_index].sets[new_index].blocks[ind].valid = true;
             }
+            ///printf("Changing block %d to dirty\n", ind);
             cache[cache_index].sets[new_index].blocks[ind].dirty = true;
             update_overhead(cache_index, ind, new_index, true);
 
@@ -358,17 +407,18 @@ void cache_read(int cache_index, char numOfBytes, address_t address, cache_stats
     int num_to_access = (int) ceil(((double) offset + (double) numOfBytes) /
                             (double) info.bytes_per_block);
     
-    /*
-    printf("CTID: %u\n", cache[cache_index].ctid);
+    
+    ///printf("CTID: %u\n", cache[cache_index].ctid);
     //printf("Address: %" PRIu64 "\n", address);
-    printf("Tag: %" PRIu64 "\n", tag);
-    printf("Index: %" PRIu64 "\n", index);
-    printf("Offset: %" PRIu64 "\n", offset);
-    printf("NumBytes: %d\n", numOfBytes);
-    printf("NumAccess: %d\n", num_to_access);
+    ///printf("Tag: %" PRIu64 "\n", tag);
+    ///printf("Index: %" PRIu64 "\n", index);
+    ///printf("Offset: %" PRIu64 "\n", offset);
+    ///printf("NumBytes: %d\n", numOfBytes);
+    ///printf("NumAccess: %d\n", num_to_access);
     /**/                                
 
     int new_index = 0;
+    int alreadyMissed = false;
     int i, j;
 
     for (i = 0; i < num_to_access; i++) {
@@ -377,14 +427,14 @@ void cache_read(int cache_index, char numOfBytes, address_t address, cache_stats
         /* Make sure not to go out of bounds, need to do modulus */
         new_index = (i+index) % info.num_sets;
 
-        //printf("Access: %d\n", new_index);
+        ///printf("Access: %d\n", new_index);
 
         /* Loop through the cache */
         for (j = 0; j < info.num_blocks_set; j++) {
-            //printf("Block: %d\n", j);
+            ///printf("Block: %d\n", j);
             if (cache[cache_index].sets[new_index].blocks[j].tag == tag) {
                 if (cache[cache_index].sets[new_index].blocks[j].valid) {
-                    //printf("Hit in Block: %d\n", j);
+                    ///printf("Read Hit in Block: %d\n", j);
                     update_overhead(cache_index, j, (uint64_t) new_index, false);
                     missed = false;
                     break;
@@ -394,11 +444,14 @@ void cache_read(int cache_index, char numOfBytes, address_t address, cache_stats
 
         /* Miss for this particular access */ 
         if (missed) {
-            //printf("Miss\n");
-            p_stats->read_misses_combined += 1;
-            p_stats->misses += 1;
-            if (cache_index == 0)
-                p_stats->read_misses +=1;
+            if (!alreadyMissed) {
+                ///printf("Read Miss\n");
+                p_stats->read_misses_combined += 1;
+                p_stats->misses += 1;
+                if (cache_index == 0)
+                    p_stats->read_misses +=1;
+                alreadyMissed = true;
+            }
 
             /* Get a block to replace */
             int ind = get_replacement_block(cache_index, new_index);
@@ -417,7 +470,9 @@ void cache_read(int cache_index, char numOfBytes, address_t address, cache_stats
                     need to update that one too. It will be another miss */
                     if (offset + numOfBytes > half) {
                         cache[cache_index].sets[new_index].blocks[ind].valid_second = true;
-                        p_stats->read_misses += 1;
+                        if (cache_index == 0)
+                            p_stats->read_misses += 1;
+                        p_stats->read_misses_combined += 1;
                     }
                 }
                 else {
@@ -426,8 +481,10 @@ void cache_read(int cache_index, char numOfBytes, address_t address, cache_stats
                 }
             }
             else {
+                ///printf("Changing block %d to valid\n", ind);
                 cache[cache_index].sets[new_index].blocks[ind].valid = true;
             }
+            ///printf("Changing block %d to not dirty\n", ind);
             cache[cache_index].sets[new_index].blocks[ind].dirty = false;
             update_overhead(cache_index, ind, new_index, true);
 
@@ -457,11 +514,6 @@ void cache_read(int cache_index, char numOfBytes, address_t address, cache_stats
  * @p_stats Pointer to the statistics structure
  */
 void complete_cache(cache_stats_t *p_stats) {
-
-    for (int i = 0; i < cache.size(); i++) {
-        printf("Index: %d\t", i);
-        printf("CTID: %u\n", cache[i].ctid);
-    }
 
     for (int i = 0; i < info.num_processors; i++) {
         for (int j = 0; j < info.num_sets; j++) {
