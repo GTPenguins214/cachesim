@@ -53,20 +53,67 @@ void update_policy(int cache_ind, uint64_t set_ind, int block_ind) {
     }
     else { /* NMRU-FIFO */
         ///printf("NMRU-FIFO\n");
+        for (int i = 0; i < info.num_blocks_set; i = i + 1) {
+            if (i == block_ind) {
+                cache[cache_ind].sets[set_ind].blocks[block_ind].mru = true;
+            }
+            else {
+                cache[cache_ind].sets[set_ind].blocks[i].mru = false;
+            }
+        }
     }
 }
 
 int get_replacement_block(int cache_ind, uint64_t set_ind) {
+    if (info.R) {
+        /* Get the first block with an LRU of 0 */
+        for (int i = 0; i < info.num_blocks_set; i++) {
+            if (cache[cache_ind].sets[set_ind].blocks[i].num_lru == 0)
+                return i;
+        }
 
-    /* Get the first block with an LRU of 0 */
-    for (int i = 0; i < info.num_blocks_set; i++) {
-        if (cache[cache_ind].sets[set_ind].blocks[i].num_lru == 0)
-            return i;
+        /* Throw an asser */
+        printf("\nREPLACEMENT ALGORITHM FAILED!!!!\n");
+        assert(false);
     }
+    else { /*NMRU-FIFO */
+        int first, second, decrement_start_ind;
 
-    /* Throw an asser */
-    printf("\nREPLACEMENT ALGORITHM FAILED!!!!\n");
-    assert(false);
+        /* Find the index of the blocks with num_fifo=0 and 1 */
+        for (int i = 0; i < info.num_blocks_set; i++) {
+            if (cache[cache_ind].sets[set_ind].blocks[i].num_fifo == 0)
+                first = i;
+            if (cache[cache_ind].sets[set_ind].blocks[i].num_fifo == 1)
+                second = i;
+        }
+
+        /* Check if the mru block is the first in block */
+        if (cache[cache_ind].sets[set_ind].blocks[first].mru) {
+            /* Take the second block and decrement all above it */
+            decrement_start_ind = 2;
+        }
+        else {
+            /* Take the first block and decrement all above it */
+            decrement_start_ind = 1;
+        }
+
+        /* Go through the blocks and decrement */
+        for (int i = 0; i < info.num_blocks_set; i++) {
+            if (cache[cache_ind].sets[set_ind].blocks[i].num_fifo >= decrement_start_ind)
+                cache[cache_ind].sets[set_ind].blocks[i].num_fifo -= 1;
+        }
+
+        /* Set the block we want to the last in */
+        cache[cache_ind].sets[set_ind].blocks[decrement_start_ind-1].num_fifo = 
+                        info.num_blocks_set - 1;
+
+        /* Return the correct indice */
+        if (decrement_start_ind == 1)
+            return first;
+        else
+            return second;
+
+    }
 }
 
 /**
@@ -125,7 +172,7 @@ void setup_cache(uint64_t c, uint64_t b, uint64_t s, char st, char r) {
             sets[i].blocks[j].valid = false;
             sets[i].blocks[j].valid_first = false;
             sets[i].blocks[j].valid_second = false;
-            sets[i].blocks[j].num_lru = j;
+            sets[i].blocks[j].num_lru = 0;
             sets[i].blocks[j].mru = false;
             sets[i].blocks[j].num_fifo = j;
         }
