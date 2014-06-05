@@ -89,6 +89,8 @@ int main(int argc, char* argv[]) {
     MemReq memR;
     
     TraceWrapper tw(fname);
+
+    int count = 0;
     
     while (tw.getNextMemoryRequest(&memR) != 0)
     {
@@ -104,6 +106,12 @@ int main(int argc, char* argv[]) {
         if (isWrite) rw = WRITE;
         
         cache_access(ctid, rw, numOfBytes, address, &stats); 
+
+        if (count == 100) {
+            break;
+        }
+        else
+            count += 1;
     }
 
     complete_cache(&stats);
