@@ -74,7 +74,7 @@ int get_replacement_block(int cache_ind, uint64_t set_ind) {
             }
         }
 
-        /* Throw an asser */
+        /* Throw an assert */
         printf("\nREPLACEMENT ALGORITHM FAILED!!!!\n");
         assert(false);
     }
@@ -220,7 +220,8 @@ void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address,
     /* if we don't have it already then we need to create it */
     if (cache_ind == -1) {
         setup_cache(info.C, info.B, info.S, info.ST, info.R);
-        cache[cache_ind = cache.size()-1].ctid = ctid;
+        cache_ind = cache.size() -1;
+        cache[cache_ind].ctid = ctid;
     }
 
     /* Get the tag, index and offset */
@@ -240,7 +241,7 @@ void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address,
     if (rw == WRITE)
     {
         /* Debug */
-        
+        /*
         printf("W\t");
         printf("CTID: %d\t", ctid);
         printf("Tag: %" PRIu64 "\t", tag);
@@ -251,11 +252,16 @@ void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address,
         /**/
 
         p_stats->writes++;
+        int set_ind = index;
 
         /* Call the function as many times as num_set_access */
         for (int i = 0; i < num_set_access; i++) {
             /* Calculate the new set index */
-            int set_ind = (i + index) % info.num_sets;
+
+            if (set_ind >= info.num_sets) {
+                set_ind = 0;
+                tag += 1;
+            }
 
             /* After the first set read, the next sets will all
                 have a offset of 0 */
@@ -272,13 +278,15 @@ void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address,
 
             ///printf("Set Index: %d\n", set_ind);
             cache_write(ctid, cache_ind, tag, set_ind, offset, bytes_to_access, p_stats);
+
+            set_ind += 1;
         }
         
     }
     else
     {
         /* Debug */
-        
+        /*
         printf("R\t");
         printf("CTID: %d\t", ctid);
         printf("Tag: %" PRIu64 "\t", tag);
@@ -289,10 +297,15 @@ void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address,
         /**/
 
         p_stats->reads++;
+        int set_ind = index;
 
         /* Call the function as many times as num_set_access */
         for (int i = 0; i < num_set_access; i++) {
-            int set_ind = (i + index) % info.num_sets;
+            
+            if (set_ind >= info.num_sets) {
+                set_ind = 0;
+                tag += 1;
+            }
 
             /* After the first set read, the next sets will all
                 have a offset of 0 */
@@ -309,6 +322,8 @@ void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address,
 
             ///printf("Set Index; %d\n", set_ind);
             cache_read(ctid, cache_ind, tag, set_ind, offset, bytes_to_access, p_stats);
+
+            set_ind += 1;
         }
     }
 }
@@ -319,8 +334,8 @@ void cache_write(int ctid, int cache_ind, uint64_t tag, uint64_t index,
     bool missed = true; /* Assume we miss */
     bool first = false, second = false;
 
+    /*
     if (tag == 46474766952 | tag == 137438918530 | tag == 46474813067) {
-        /* Debug */
         for (int i = 0; i < info.num_processors; i++ ) {
             for (int j = 0; j < info.num_sets; j++) {
                 for (int k = 0; k < info.num_blocks_set; k++) {
@@ -339,7 +354,7 @@ void cache_write(int ctid, int cache_ind, uint64_t tag, uint64_t index,
                 }
             }
         }
-    }
+    } /**/
 
     /* Check if we need half blocks */
     if (info.ST) {
@@ -509,13 +524,12 @@ void cache_read(int ctid, int cache_ind, uint64_t tag, uint64_t index,
     bool first = false, second = false;
 
     if (info.ST) {
-
+        /*
         if (tag == 46474766952 | tag == 137438918530 | tag == 46474813067) {
-            /* Debug */
             for (int i = 0; i < info.num_processors; i++ ) {
                 for (int j = 0; j < info.num_sets; j++) {
                     for (int k = 0; k < info.num_blocks_set; k++) {
-                        printf("[%d][%d][%d].tag: %" PRIu64 "\n", 
+                        ///printf("[%d][%d][%d].tag: %" PRIu64 "\n", 
                             i, j, k, cache[i].sets[j].blocks[k].tag);
                         if (cache[i].sets[j].blocks[k].valid_first)
                             printf("[%d][%d][%d].first: true\n", i, j, k);
@@ -530,7 +544,7 @@ void cache_read(int ctid, int cache_ind, uint64_t tag, uint64_t index,
                     }
                 }
             }
-        }
+        } /**/
 
         //printf("offset %" PRIu64 "\t bpb %" PRIu64 "\t bpb/2 %" PRIu64 "\n", 
                     //offset, info.bytes_per_block, info.bytes_per_block/2);

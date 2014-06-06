@@ -110,8 +110,8 @@ int main(int argc, char* argv[]) {
         cache_access(ctid, rw, numOfBytes, address, &stats);
         ///printf("\n");
 
-        if (count == 2400000)
-            break; 
+        ///if (count == 2400000)
+            ///break; 
 
     }
 
