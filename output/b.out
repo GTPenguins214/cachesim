@@ -9,14 +9,14 @@ Cache Statistics
 Accesses: 10545826
 Reads: 8017232
 Read misses: 1
-Read misses combined: 2006427
+Read misses combined: 2006426
 Writes: 2528594
 Write misses: 2049
-Write misses combined: 2003665
-Misses: 4010092
+Write misses combined: 2003627
+Misses: 4010053
 Hit Time: 1
-Miss Penalty: 67
-Miss rate: 0.380254
-Average access time (AAT): 26.477015
-Storage Overhead: 4
-Storage Overhead Ratio: 0.015625
+Miss Penalty: 59
+Miss rate: 0.380250
+Average access time (AAT): 23.434765
+Storage Overhead: 276
+Storage Overhead Ratio: 0.134766
