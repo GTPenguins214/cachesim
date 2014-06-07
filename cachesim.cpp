@@ -10,6 +10,8 @@ vector <cache_t> cache;
 cache_info_t info;
 int ctid_init = 1;
 
+FILE *myfile0, *myfile1, *myfile2, *myfile3, *myfile4, *myfile5, *myfile6, *myfile7;
+
 uint64_t parse_address(address_t addr, char part) {
 
     address_t ret_addr;
@@ -27,7 +29,7 @@ uint64_t parse_address(address_t addr, char part) {
             break;
         case 'o':
             /* Bitmask out the index and tag */
-            ret_addr = addr &  ((uint64_t) ((uint64_t)1 <<(info.B)) - 1);
+            ret_addr = addr &  ((uint64_t) ((uint64_t)1 << (info.B)) - 1);
             break;
     }
 
@@ -36,18 +38,15 @@ uint64_t parse_address(address_t addr, char part) {
 
 void update_policy(int cache_ind, uint64_t set_ind, int block_ind) {
     if (info.R = true) { /* LRU */
-        ///printf("LRU\n");
         int old_lru = cache[cache_ind].sets[set_ind].blocks[block_ind].num_lru;
 
         for (int i = 0; i < info.num_blocks_set; i++) {
             if (cache[cache_ind].sets[set_ind].blocks[i].num_lru > old_lru) {
                 cache[cache_ind].sets[set_ind].blocks[i].num_lru -= 1;
-                ///printf("Block %d is %d\n", i, cache[cache_ind].sets[set_ind].blocks[i].num_lru);
             }
             if (i == block_ind) {
                 cache[cache_ind].sets[set_ind].blocks[block_ind].num_lru = 
                     info.num_blocks_set - 1;
-                ///printf("Block %d is %d\n", i, cache[cache_ind].sets[set_ind].blocks[i].num_lru);
             }
         }
     }
@@ -69,7 +68,6 @@ int get_replacement_block(int cache_ind, uint64_t set_ind) {
         /* Get the first block with an LRU of 0 */
         for (int i = 0; i < info.num_blocks_set; i++) {
             if (cache[cache_ind].sets[set_ind].blocks[i].num_lru == 0) {
-                printf("Replace %d\n", i);
                 return i;
             }
         }
@@ -160,6 +158,15 @@ void setup_cache(uint64_t c, uint64_t b, uint64_t s, char st, char r) {
         printf("Index Bits: %" PRIu64 "\t", info.index_bits);
         printf("Offset Bits: %" PRIu64 "\n", info.offset_bits);
 
+        // myfile0 = fopen("output0.txt", "w");
+        // myfile1 = fopen("output1.txt", "w");
+        // myfile2 = fopen("output2.txt", "w");
+        // myfile3 = fopen("output3.txt", "w");
+        // myfile4 = fopen("output4.txt", "w");
+        // myfile5 = fopen("output5.txt", "w");
+        // myfile6 = fopen("output6.txt", "w");
+        // myfile7 = fopen("output7.txt", "w");
+
     }
 
     info.num_processors += 1;
@@ -204,6 +211,7 @@ void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address,
 
     /* For the first access, we have the data structure but the ctid not filled in */
     if (ctid_init == 1) {
+        info.num_processors = 1;
         cache[0].ctid = ctid;
         ctid_init = 0;
     }
@@ -224,501 +232,146 @@ void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address,
         cache[cache_ind].ctid = ctid;
     }
 
-    /* Get the tag, index and offset */
-    uint64_t tag = parse_address(address, 't');
-    uint64_t index = parse_address(address, 'i');
-    uint64_t offset = parse_address(address, 'o');
-
-    /* Figure out if the number of bytes spans multiple cache lines */
-    int num_set_access = (int) ceil(((double) offset + (double) numOfBytes) /
-                            (double) info.bytes_per_block);
-
-    ///printf("NumAccess: %d\t", num_set_access);
+    /* Just some arbitrary number that probably won't get hit. */
+    uint64_t old_index = 1000000;
+    /* Use this to tell when to count misses and hits */
+    bool count_it = false;
 
     p_stats->accesses++;
-    int bytes_left = numOfBytes;
-    
+
     if (rw == WRITE)
-    {
-        /* Debug */
-        /*
-        printf("W\t");
-        printf("CTID: %d\t", ctid);
-        printf("Tag: %" PRIu64 "\t", tag);
-        printf("Index: %" PRIu64 "\t", index);
-        printf("Offset: %" PRIu64 "\t", offset);
-        printf("Bytes: %d\t", numOfBytes);
-        printf("Access: %d\n", num_set_access);
-        /**/
-
         p_stats->writes++;
-        int set_ind = index;
-
-        /* Call the function as many times as num_set_access */
-        for (int i = 0; i < num_set_access; i++) {
-            /* Calculate the new set index */
-
-            if (set_ind >= info.num_sets) {
-                set_ind = 0;
-                tag += 1;
-            }
-
-            /* After the first set read, the next sets will all
-                have a offset of 0 */
-            if (i != 0)
-                offset = 0;
-
-            /* Get the number of bytes we need to read for this set */
-            int bytes_left_in_block = info.bytes_per_block - offset;
-            int bytes_to_access = (bytes_left_in_block < bytes_left) ? 
-                                    bytes_left_in_block : bytes_left;
-            bytes_left -= bytes_to_access;
-
-            ///printf("Bytes_To_Access: %d\n", bytes_to_access);
-
-            ///printf("Set Index: %d\n", set_ind);
-            cache_write(ctid, cache_ind, tag, set_ind, offset, bytes_to_access, p_stats);
-
-            set_ind += 1;
-        }
-        
-    }
     else
-    {
-        /* Debug */
-        /*
-        printf("R\t");
-        printf("CTID: %d\t", ctid);
-        printf("Tag: %" PRIu64 "\t", tag);
-        printf("Index: %" PRIu64 "\t", index);
-        printf("Offset: %" PRIu64 "\t", offset);
-        printf("Bytes: %d\t", numOfBytes);
-        printf("Access: %d\n", num_set_access);
-        /**/
-
         p_stats->reads++;
-        int set_ind = index;
 
-        /* Call the function as many times as num_set_access */
-        for (int i = 0; i < num_set_access; i++) {
-            
-            if (set_ind >= info.num_sets) {
-                set_ind = 0;
-                tag += 1;
-            }
+    /* Loop over the number of bytes we want */
+    for (int i = 0; i < numOfBytes; i++) {
+        /* Get the tag, index and offset */
+        uint64_t tag = parse_address(address, 't');
+        uint64_t index = parse_address(address, 'i');
+        uint64_t offset = parse_address(address, 'o');
 
-            /* After the first set read, the next sets will all
-                have a offset of 0 */
-            if (i != 0)
-                offset = 0;
-
-            /* Get the number of bytes we need to read for this set */
-            int bytes_left_in_block = info.bytes_per_block - offset;
-            int bytes_to_access = (bytes_left_in_block < bytes_left) ? 
-                                    bytes_left_in_block : bytes_left;
-            bytes_left -= bytes_to_access;
-
-            ///printf("Bytes_To_Access: %d\n", bytes_to_access);
-
-            ///printf("Set Index; %d\n", set_ind);
-            cache_read(ctid, cache_ind, tag, set_ind, offset, bytes_to_access, p_stats);
-
-            set_ind += 1;
+        /* If the set number changes then we should track whether this access
+        is a hit or a miss and increment the p_stats struct */
+        if (index != old_index) {
+            count_it = true;
+            old_index = index;
         }
+         
+        /* Some debug code */
+         // if (count_it) {
+         //    switch (cache_ind) {
+         //        case 0:
+         //            fprintf(myfile0, "%c\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%d",
+         //                    rw, tag, index, offset, count_it);
+         //            break;
+         //        case 1:
+         //            fprintf(myfile1, "%c\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%d\n",
+         //                    rw, tag, index, offset, count_it);
+         //            break;
+         //        case 2:
+         //            fprintf(myfile2, "%c\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%d\n",
+         //                    rw, tag, index, offset, count_it);
+         //            break;
+         //        case 3:
+         //            fprintf(myfile3, "%c\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%d\n",
+         //                    rw, tag, index, offset, count_it);
+         //            break;
+         //        case 4:
+         //            fprintf(myfile4, "%c\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%d\n",
+         //                    rw, tag, index, offset, count_it);
+         //            break;
+         //        case 5:
+         //            fprintf(myfile5, "%c\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%d\n",
+         //                    rw, tag, index, offset, count_it);
+         //            break;
+         //        case 6:
+         //            fprintf(myfile6, "%c\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%d\n",
+         //                    rw, tag, index, offset, count_it);
+         //            break;
+         //        case 7:
+         //            fprintf(myfile7, "%c\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%d\n",
+         //                    rw, tag, index, offset, count_it);
+         //            break;
+
+         //    }
+
+         // }
+
+        /* The main cache access function */
+        cache_lookup(ctid, cache_ind, tag, index, offset, p_stats, count_it, rw);
+
+        /* Increment the address and set count_it to false */
+        address += 1;
+        count_it = false;
     }
+
 }
 
-void cache_write(int ctid, int cache_ind, uint64_t tag, uint64_t index, 
-                 uint64_t offset, int numOfBytes, cache_stats_t* p_stats) {
+void cache_lookup(int ctid, int cache_ind, uint64_t tag, uint64_t index, 
+                 uint64_t offset, cache_stats_t* p_stats, bool count_it, char rw) {
 
     bool missed = true; /* Assume we miss */
-    bool first = false, second = false;
-
-    /*
-    if (tag == 46474766952 | tag == 137438918530 | tag == 46474813067) {
-        for (int i = 0; i < info.num_processors; i++ ) {
-            for (int j = 0; j < info.num_sets; j++) {
-                for (int k = 0; k < info.num_blocks_set; k++) {
-                    printf("[%d][%d][%d].tag: %" PRIu64 "\n", 
-                        i, j, k, cache[i].sets[j].blocks[k].tag);
-                    if (cache[i].sets[j].blocks[k].valid_first)
-                        printf("[%d][%d][%d].first: true\n", i, j, k);
-                    else
-                        printf("[%d][%d][%d].first: false\n", i, j, k);
-                    if (cache[i].sets[j].blocks[k].valid_second)
-                        printf("[%d][%d][%d].second: true\n", i, j, k);
-                    else
-                        printf("[%d][%d][%d].second: false\n", i, j, k);
-                    printf("[%d][%d][%d].num_lru: %d\n", 
-                        i, j, k, cache[i].sets[j].blocks[k].num_lru);
-                }
-            }
-        }
-    } /**/
 
     /* Check if we need half blocks */
     if (info.ST) {
-
-        //printf("offset %" PRIu64 "\t bpb %" PRIu64 "\t bpb/2 %" PRIu64 "\n", 
-                    //offset, info.bytes_per_block, info.bytes_per_block/2);
-
-        /* If the offset is in the lower half then we need it */
-        if (offset < info.bytes_per_block/2) {
-            first = true;
-        }
-
-        /* If it is in the upper half */
-        if (offset + numOfBytes - 1  >= info.bytes_per_block/2) {
-            second = true;
-        }
-        ///printf("\n");
-
-        for (int i = 0; i < info.num_blocks_set; i++) {
-            /* Get the tag and cmopare */
-            if (cache[cache_ind].sets[index].blocks[i].tag == tag) {
-                if (first) { /* If we need to check the first */
-                    /* Check its validity */
-                    if (cache[cache_ind].sets[index].blocks[i].valid_first) {
-                        printf("First: Hit\t");
-                        /* If the second block is needed */
-                        if (second) {
-                            /* Check if it is INvalid, if so, bring it in and count a miss */
-                            if (!cache[cache_ind].sets[index].blocks[i].valid_second) {
-                                ///printf("Second: Miss");
-                                cache[cache_ind].sets[index].blocks[i].valid_second = true;
-                                if (ctid == 0)
-                                    p_stats->write_misses += 1;
-                                p_stats->write_misses_combined += 1;
-                            }
-                            else
-                                printf("Second: Hit");
-                        }
-                        printf("\n");
-                    }
-                    else { /* It's invalid so bring it in */
-                        ///printf("First: Miss\t");
-                        cache[cache_ind].sets[index].blocks[i].valid_first = true;
-                        if (ctid == 0)
-                            p_stats->write_misses += 1;
-                        p_stats->write_misses_combined += 1;
-
-                        if (second) {
-                            if (!cache[cache_ind].sets[index].blocks[i].valid_second) {
-                                /* Don't think we should ever get here. If we bring in 
-                                a block and it has two invalids then what is it for? */
-                                assert(false);
-                                printf("Second: Miss\t");
-                                cache[cache_ind].sets[index].blocks[i].valid_second = true;
-                                if (ctid == 0)
-                                    p_stats->write_misses += 1;
-                                p_stats->write_misses_combined += 1;
-                            }
-                            else
-                                printf("Second: Hit\t");
-                        }
-                    }
-                }
-                else { /* Only need to check the second block */
-                    /* If it is invalid then bring it in and count a miss */
-                    if (!cache[cache_ind].sets[index].blocks[i].valid_second) {
-                        printf("Second: Miss\n");
-                        cache[cache_ind].sets[index].blocks[i].valid_second = true;
-                        if (ctid == 0) 
-                            p_stats->write_misses += 1;
-                        p_stats->write_misses_combined += 1;
-                    }
-                    else
-                        printf("Second: Hit\n");
-                }
-                update_policy(cache_ind, index, i);
-                missed = false;
-            }
-        }
-
-        if (missed) {
-            printf("Total Miss\t");
-            /* Update the stats */
-            if (ctid == 0)
-                p_stats->write_misses += 1;
-            p_stats->write_misses_combined += 1;
-
-            /* Get a replacement block */
-            int i = get_replacement_block(cache_ind, index);
-
-            /* Replace the block */
-            cache[cache_ind].sets[index].blocks[i].tag = tag;
-            cache[cache_ind].sets[index].blocks[i].dirty = true;
-            if (first) {
-                cache[cache_ind].sets[index].blocks[i].valid_first = true;
-
-                /* Check if the second needs to come in too */
-                if (second) {
-                    /* Another miss */
-                    if (ctid == 0) 
-                        p_stats->write_misses += 1;
-                    p_stats->write_misses_combined += 1;
-
-                    cache[cache_ind].sets[index].blocks[i].valid_second = true;
-                }
-            }
-            else {
-                cache[cache_ind].sets[index].blocks[i].valid_second = true;
-                cache[cache_ind].sets[index].blocks[i].valid_first = false;
-            }
-
-            update_policy(cache_ind, index, i);
-        }
 
     }
     else { /* Blocking */
 
         /* Loop through the blocks in the set and see if we have a hit */
-        for (int i = 0; i < info.num_blocks_set; i++ ) {
+        for (int block_ind = 0; block_ind < info.num_blocks_set; block_ind++ ) {
             /* Get the tag and compare */
-            if (cache[cache_ind].sets[index].blocks[i].tag == tag) {
-                if (cache[cache_ind].sets[index].blocks[i].valid) {
-                    /* Debug */
-                    ///printf("Write Hit\t");
-
-                    /* Update the replacement policy */
-                    update_policy(cache_ind, index, i);
-
-                    /* Set the block to dirty */
-                    cache[cache_ind].sets[index].blocks[i].dirty = true;
-                    missed = false;
-                    break;
-                }
-            }
-        }
-
-        if (missed) {
-
-            /* Debug */
-            ///printf("Write Miss\t");
-
-            /* Update the stats */
-            /* If it is the 0th CPU then add it to write_misses */
-            if (ctid == 0)
-                p_stats->write_misses += 1;
-            p_stats->write_misses_combined += 1;
-
-            /* Get a replacement block */
-            int i = get_replacement_block(cache_ind, index);
-
-            /* Replace the block */
-            cache[cache_ind].sets[index].blocks[i].tag = tag;
-            cache[cache_ind].sets[index].blocks[i].valid = true;
-            cache[cache_ind].sets[index].blocks[i].dirty = true;
-
-            /* Update the replacement policy */
-            update_policy(cache_ind, index, i);
-        }
-    }
-
-}
-
-void cache_read(int ctid, int cache_ind, uint64_t tag, uint64_t index, 
-                uint64_t offset, int numOfBytes, cache_stats_t* p_stats) {
-
-    bool missed = true; /* Assume we miss */
-    bool first = false, second = false;
-
-    if (info.ST) {
-        /*
-        if (tag == 46474766952 | tag == 137438918530 | tag == 46474813067) {
-            for (int i = 0; i < info.num_processors; i++ ) {
-                for (int j = 0; j < info.num_sets; j++) {
-                    for (int k = 0; k < info.num_blocks_set; k++) {
-                        ///printf("[%d][%d][%d].tag: %" PRIu64 "\n", 
-                            i, j, k, cache[i].sets[j].blocks[k].tag);
-                        if (cache[i].sets[j].blocks[k].valid_first)
-                            printf("[%d][%d][%d].first: true\n", i, j, k);
-                        else
-                            printf("[%d][%d][%d].first: false\n", i, j, k);
-                        if (cache[i].sets[j].blocks[k].valid_second)
-                            printf("[%d][%d][%d].second: true\n", i, j, k);
-                        else
-                            printf("[%d][%d][%d].second: false\n", i, j, k);
-                        printf("[%d][%d][%d].num_lru: %d\n", 
-                            i, j, k, cache[i].sets[j].blocks[k].num_lru);
-                    }
-                }
-            }
-        } /**/
-
-        //printf("offset %" PRIu64 "\t bpb %" PRIu64 "\t bpb/2 %" PRIu64 "\n", 
-                    //offset, info.bytes_per_block, info.bytes_per_block/2);
-
-        /* If the offset is in the lower half then we need it */
-        if (offset < info.bytes_per_block/2) {
-            //printf("First\t");
-            first = true;
-        }
-
-        /* If it is in the upper half */
-        if (offset + numOfBytes - 1>= info.bytes_per_block/2) {
-            //printf("Second\n");
-            second = true;
-        }
-
-        for (int i = 0; i < info.num_blocks_set; i++) {
-            /* Get the tag and cmopare */
-            if (cache[cache_ind].sets[index].blocks[i].tag == tag) {
-                if (first) { /* If we need to check the first */
-                    /* Check its validity */
-                    if (cache[cache_ind].sets[index].blocks[i].valid_first) {
-                        printf("First: Hit\t");
-                        /* If the second block is needed */
-                        if (second) {
-                            /* Check if it is INvalid, if so, bring it in and count a miss */
-                            if (!cache[cache_ind].sets[index].blocks[i].valid_second) {
-                                printf("Second: Miss");
-                                cache[cache_ind].sets[index].blocks[i].valid_second = true;
-                                if (ctid == 0)
-                                    p_stats->read_misses += 1;
-                                p_stats->read_misses_combined += 1;
-                            }
-                            else
-                                printf("Second: Hit");
-                        }
-                        printf("\n");
-                    }
-                    else { /* It's invalid so bring it in */
-                        printf("First: Miss\t");
-                        cache[cache_ind].sets[index].blocks[i].valid_first = true;
-                        if (ctid == 0)
-                            p_stats->read_misses += 1;
-                        p_stats->read_misses_combined += 1;
-
-                        if (second) {
-                            if (!cache[cache_ind].sets[index].blocks[i].valid_second) {
-                                printf("Second: Miss");
-                                cache[cache_ind].sets[index].blocks[i].valid_second = true;
-                                if (ctid == 0)
-                                    p_stats->read_misses += 1;
-                                p_stats->read_misses_combined += 1;
-                            }
-                            else
-                                printf("Second: Hit");
-
-                        }
-                        printf("\n");
-                    }
-                }
-                else { /* Only need to check the second block */
-                    /* If it is invalid then bring it in and count a miss */
-                    if (!cache[cache_ind].sets[index].blocks[i].valid_second) {
-                        cache[cache_ind].sets[index].blocks[i].valid_second = true;
-                        if (ctid == 0) 
-                            p_stats->read_misses += 1;
-                        p_stats->read_misses_combined += 1;
-
-                        printf("Second: Miss\n");
-                    }
-                    else
-                        printf("Second: Hit\n");
-                }
-                update_policy(cache_ind, index, i);
-                missed = false;
-            }
-        }
-
-        if (missed) {
-            printf("Total Miss\t");
-            /* Update the stats */
-            if (ctid == 0)
-                p_stats->read_misses += 1;
-            p_stats->read_misses_combined += 1;
-
-            /* Get a replacement block */
-            int i = get_replacement_block(cache_ind, index);
-
-            /* Replace the block */
-            cache[cache_ind].sets[index].blocks[i].tag = tag;
-            cache[cache_ind].sets[index].blocks[i].dirty = true;
-            if (first) {
-                cache[cache_ind].sets[index].blocks[i].valid_first = true;
-
-                /* Check if the second needs to come in too */
-                if (second) {
-                    /* Another miss */
-                    if (ctid == 0) 
-                        p_stats->read_misses += 1;
-                    p_stats->read_misses_combined += 1;
-
-                    cache[cache_ind].sets[index].blocks[i].valid_second = true;
-                }
-            }
-            else {
-                cache[cache_ind].sets[index].blocks[i].valid_second = true;
-                cache[cache_ind].sets[index].blocks[i].valid_first = false;
-            }
-
-            update_policy(cache_ind, index, i);
-        }
-    }
-    else {
-
-        /* Loop through the blocks in the set and see if we have a hit */
-        for (int i = 0; i < info.num_blocks_set; i++) {
-            /* Get the tag and compare */
-            if (cache[cache_ind].sets[index].blocks[i].tag == tag) {
-
-                /* Debug */
-                ///printf("Read Hit\t");
+            if (cache[cache_ind].sets[index].blocks[block_ind].tag == tag) {
 
                 /* Update the replacement policy */
-                update_policy(cache_ind, index, i);
+                update_policy(cache_ind, index, block_ind);
+
+                /* Set the block to dirty */
+                if (rw == WRITE)
+                    cache[cache_ind].sets[index].blocks[block_ind].dirty = true;
+
                 missed = false;
                 break;
+
             }
         }
 
-        /* If it is a miss then we need to do some work */
         if (missed) {
 
-            /* Debug */
-            ///printf("Read Miss\t");
-
-            /* Update the stats */
-            /* If it is the 0th CPU then add it to read_misses */
-            if (ctid == 0)
-                p_stats->read_misses += 1;
-            p_stats->read_misses_combined += 1;
-
-            /* Get a replacement block */
-            int i = get_replacement_block(cache_ind, index);
-
-            if (info.ST) {
-                /* Figure out if we need the first, or second half  or both*/
-                if (offset < (info.num_blocks_set / 2)) {
-                    /* Need the first */
-                    cache[cache_ind].sets[index].blocks[i].tag = tag;
-                    cache[cache_ind].sets[index].blocks[i].valid_first = true;
-                    cache[cache_ind].sets[index].blocks[i].dirty = true;
-
-                    /* Now check if we need the second too */
-                    if (offset + numOfBytes > (info.num_blocks_set / 2))
-                        cache[cache_ind].sets[index].blocks[i].valid_second = true;
+            if (count_it) {
+                if (rw == WRITE) {
+                    if (ctid == 0) {
+                        p_stats->write_misses += 1;
+                        //fprintf(myfile0, "Write Miss\n");
+                    }
+                    p_stats->write_misses_combined += 1;
                 }
                 else {
-                    /* Need the second */
-                    cache[cache_ind].sets[index].blocks[i].tag = tag;
-                    cache[cache_ind].sets[index].blocks[i].valid_second = true;
-                    cache[cache_ind].sets[index].blocks[i].dirty = true;
+                    if (ctid == 0) {
+                        p_stats->read_misses += 1;
+                        //fprintf(myfile0, "Read Miss\n");
+                    }
+                    p_stats->read_misses_combined += 1;
                 }
             }
-            else {
-                /* Replace the block */
-                cache[cache_ind].sets[index].blocks[i].tag = tag;
-                cache[cache_ind].sets[index].blocks[i].valid = true;
-                cache[cache_ind].sets[index].blocks[i].dirty = false;
-            }
+
+            /* Get a replacement block */
+            int block_ind = get_replacement_block(cache_ind, index);
+
+            /* Replace the block */
+            cache[cache_ind].sets[index].blocks[block_ind].tag = tag;
+            cache[cache_ind].sets[index].blocks[block_ind].valid = true;
+            if (rw == WRITE)
+                cache[cache_ind].sets[index].blocks[block_ind].dirty = true;
+            else
+                cache[cache_ind].sets[index].blocks[block_ind].dirty = false;
 
             /* Update the replacement policy */
-            update_policy(cache_ind, index, i);
+            update_policy(cache_ind, index, block_ind);
         }
     }
+
 }
 
 /**
@@ -730,12 +383,59 @@ void cache_read(int ctid, int cache_ind, uint64_t tag, uint64_t index,
  */
 void complete_cache(cache_stats_t *p_stats) {
 
+    // for (int i = 0; i < info.num_processors; i++) {
+    //     printf("Cache[%d]\n", i);
+    //     for (int j = 0; j < info.num_sets; j++) {
+    //         printf("\tSet[%d]\n", j);
+    //         for (int k = 0; k < info.num_blocks_set; k++) {
+    //             printf("\t\tBlock[%d]\n", k);
+    //             printf("\t\t\tTag: %" PRIu64 "\n", cache[i].sets[j].blocks[k].tag);
+    //             if (cache[i].sets[j].blocks[k].dirty)
+    //                 printf("\t\t\tDirty: true\n");
+    //             else
+    //                 printf("\t\t\tDirty: false\n");
+
+    //             if (cache[i].sets[j].blocks[k].valid)
+    //                 printf("\t\t\tValid: true\n");
+    //             else
+    //                 printf("\t\t\tValid: false\n");
+
+    //             if (cache[i].sets[j].blocks[k].valid_first)
+    //                 printf("\t\t\tValid_First: true\n");
+    //             else
+    //                 printf("\t\t\tValid_First: false\n");
+
+    //             if (cache[i].sets[j].blocks[k].valid_first)
+    //                 printf("\t\t\tValid_Second: true\n");
+    //             else
+    //                 printf("\t\t\tValid_Second: false\n");
+
+    //             printf("\t\t\tLRU: %d\n", cache[i].sets[j].blocks[k].num_lru);
+    //             printf("\t\t\tFIFO: %d\n", cache[i].sets[j].blocks[k].num_fifo);
+    //             if (cache[i].sets[j].blocks[k].mru)
+    //                 printf("\t\t\tMRU: true\n");
+    //             else
+    //                 printf("\t\t\tMRU: false\n");
+
+    //         }
+    //     }
+    // }
+
     for (int i = 0; i < info.num_processors; i++) {
         for (int j = 0; j < info.num_sets; j++) {
             cache[i].sets[j].blocks.clear();
         }
         cache[i].sets.clear();
     }
+
+    // fclose(myfile0);
+    // fclose(myfile1);
+    // fclose(myfile2);
+    // fclose(myfile3);
+    // fclose(myfile4);
+    // fclose(myfile5);
+    // fclose(myfile6);
+    // fclose(myfile7);
 
     cache.clear();
 
