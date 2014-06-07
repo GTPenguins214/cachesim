@@ -10,6 +10,8 @@ vector <cache_t> cache;
 cache_info_t info;
 int ctid_init = 1;
 
+bool log_off = true;
+
 FILE *myfile0, *myfile1, *myfile2, *myfile3, *myfile4, *myfile5, *myfile6, *myfile7;
 
 uint64_t parse_address(address_t addr, char part) {
@@ -36,7 +38,7 @@ uint64_t parse_address(address_t addr, char part) {
     return ret_addr;
 }
 
-void update_policy(int cache_ind, uint64_t set_ind, int block_ind) {
+void update_policy(int cache_ind, uint64_t set_ind, int block_ind, bool replaced) {
     if (info.R = true) { /* LRU */
         int old_lru = cache[cache_ind].sets[set_ind].blocks[block_ind].num_lru;
 
@@ -59,6 +61,10 @@ void update_policy(int cache_ind, uint64_t set_ind, int block_ind) {
             else {
                 cache[cache_ind].sets[set_ind].blocks[i].mru = false;
             }
+        }
+        if (replaced) {
+            cache[cache_ind].sets[set_ind].blocks[block_ind].num_fifo = 
+                info.num_blocks_set -1;
         }
     }
 }
@@ -87,35 +93,24 @@ int get_replacement_block(int cache_ind, uint64_t set_ind) {
                 second = i;
         }
 
-        /* Check if the mru block is the first in block */
-        if (cache[cache_ind].sets[set_ind].blocks[first].mru) {
-            /* Take the second block and decrement all above it */
-            decrement_start_ind = 2;
+        decrement_start_ind = cache[cache_ind].sets[set_ind].blocks[first].mru == true ? 2 : 1;
+        for (int i = 0; i < info.num_blocks_set; i++) {
+            /* Decrement all blocks depending on whether MRU is set or not */
+            if (cache[cache_ind].sets[set_ind].blocks[i].num_fifo >= decrement_start_ind) {
+                cache[cache_ind].sets[set_ind].blocks[i].num_fifo -= 1;
+                ///printf("Changing block %d to num_fifo = %d\n", i,
+                    ///cache[cache_ind].sets[set_ind].blocks[i].num_fifo);
+            }
+        }
+
+        if (decrement_start_ind == 1) {
+            ///printf("Replace Block: %d\n", first);
+            return first;
         }
         else {
-            /* Take the first block and decrement all above it */
-            decrement_start_ind = 1;
-        }
-
-        /* Go through the blocks and decrement */
-        for (int i = 0; i < info.num_blocks_set; i++) {
-            if (cache[cache_ind].sets[set_ind].blocks[i].num_fifo >= decrement_start_ind)
-                cache[cache_ind].sets[set_ind].blocks[i].num_fifo -= 1;
-        }
-
-        /* Set the block we want to the last in */
-        cache[cache_ind].sets[set_ind].blocks[decrement_start_ind-1].num_fifo = 
-                        info.num_blocks_set - 1;
-
-        /* Return the correct indice */
-        if (decrement_start_ind == 1)
-            return first;
-        else
+            ///printf("Replace Block: %d\n", second);
             return second;
-
-        /* Throw an asser */
-        printf("\nREPLACEMENT ALGORITHM FAILED!!!!\n");
-        assert(false);
+        }
 
     }
 }
@@ -158,14 +153,14 @@ void setup_cache(uint64_t c, uint64_t b, uint64_t s, char st, char r) {
         printf("Index Bits: %" PRIu64 "\t", info.index_bits);
         printf("Offset Bits: %" PRIu64 "\n", info.offset_bits);
 
-        // myfile0 = fopen("output0.txt", "w");
-        // myfile1 = fopen("output1.txt", "w");
-        // myfile2 = fopen("output2.txt", "w");
-        // myfile3 = fopen("output3.txt", "w");
-        // myfile4 = fopen("output4.txt", "w");
-        // myfile5 = fopen("output5.txt", "w");
-        // myfile6 = fopen("output6.txt", "w");
-        // myfile7 = fopen("output7.txt", "w");
+        myfile0 = fopen("output0.txt", "w");
+        myfile1 = fopen("output1.txt", "w");
+        myfile2 = fopen("output2.txt", "w");
+        myfile3 = fopen("output3.txt", "w");
+        myfile4 = fopen("output4.txt", "w");
+        myfile5 = fopen("output5.txt", "w");
+        myfile6 = fopen("output6.txt", "w");
+        myfile7 = fopen("output7.txt", "w");
 
     }
 
@@ -235,7 +230,7 @@ void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address,
     /* Just some arbitrary number that probably won't get hit. */
     uint64_t old_index = 1000000;
     /* Use this to tell when to count misses and hits */
-    bool count_it = false;
+    bool count_it = true;
 
     p_stats->accesses++;
 
@@ -251,64 +246,21 @@ void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address,
         uint64_t index = parse_address(address, 'i');
         uint64_t offset = parse_address(address, 'o');
 
-        /* If the set number changes then we should track whether this access
-        is a hit or a miss and increment the p_stats struct */
-        if (index != old_index) {
-            count_it = true;
-            old_index = index;
-        }
-         
-        /* Some debug code */
-         // if (count_it) {
-         //    switch (cache_ind) {
-         //        case 0:
-         //            fprintf(myfile0, "%c\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%d",
-         //                    rw, tag, index, offset, count_it);
-         //            break;
-         //        case 1:
-         //            fprintf(myfile1, "%c\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%d\n",
-         //                    rw, tag, index, offset, count_it);
-         //            break;
-         //        case 2:
-         //            fprintf(myfile2, "%c\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%d\n",
-         //                    rw, tag, index, offset, count_it);
-         //            break;
-         //        case 3:
-         //            fprintf(myfile3, "%c\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%d\n",
-         //                    rw, tag, index, offset, count_it);
-         //            break;
-         //        case 4:
-         //            fprintf(myfile4, "%c\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%d\n",
-         //                    rw, tag, index, offset, count_it);
-         //            break;
-         //        case 5:
-         //            fprintf(myfile5, "%c\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%d\n",
-         //                    rw, tag, index, offset, count_it);
-         //            break;
-         //        case 6:
-         //            fprintf(myfile6, "%c\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%d\n",
-         //                    rw, tag, index, offset, count_it);
-         //            break;
-         //        case 7:
-         //            fprintf(myfile7, "%c\t%" PRIu64 "\t%" PRIu64 "\t%" PRIu64 "\t%d\n",
-         //                    rw, tag, index, offset, count_it);
-         //            break;
-
-         //    }
-
-         // }
-
         /* The main cache access function */
-        cache_lookup(ctid, cache_ind, tag, index, offset, p_stats, count_it, rw);
+        bool is_miss = cache_lookup(ctid, cache_ind, tag, index, offset, p_stats, count_it, rw);
+
+        /* If we get a miss then stop keeping track because we only count multiple
+        misses as one miss */
+        if (is_miss) 
+            count_it = false;
 
         /* Increment the address and set count_it to false */
         address += 1;
-        count_it = false;
     }
 
 }
 
-void cache_lookup(int ctid, int cache_ind, uint64_t tag, uint64_t index, 
+bool cache_lookup(int ctid, int cache_ind, uint64_t tag, uint64_t index, 
                  uint64_t offset, cache_stats_t* p_stats, bool count_it, char rw) {
 
     bool missed = true; /* Assume we miss */
@@ -325,14 +277,21 @@ void cache_lookup(int ctid, int cache_ind, uint64_t tag, uint64_t index,
             if (cache[cache_ind].sets[index].blocks[block_ind].tag == tag) {
 
                 /* Update the replacement policy */
-                update_policy(cache_ind, index, block_ind);
+                update_policy(cache_ind, index, block_ind, false);
 
                 /* Set the block to dirty */
-                if (rw == WRITE)
+                if (rw == WRITE) {
                     cache[cache_ind].sets[index].blocks[block_ind].dirty = true;
+                    //if (count_it)
+                        log_output(0, ctid, cache_ind, tag, index, block_ind, 'H', 'W');
+                }
+                else {
+                    //if (count_it)
+                        log_output(0, ctid, cache_ind, tag, index, block_ind, 'H', 'R');
+                }
 
                 missed = false;
-                break;
+                return false;
 
             }
         }
@@ -343,21 +302,24 @@ void cache_lookup(int ctid, int cache_ind, uint64_t tag, uint64_t index,
                 if (rw == WRITE) {
                     if (ctid == 0) {
                         p_stats->write_misses += 1;
-                        //fprintf(myfile0, "Write Miss\n");
                     }
                     p_stats->write_misses_combined += 1;
+
+                    log_output(0, ctid, cache_ind, tag, index, 0, 'M', 'W');
                 }
                 else {
                     if (ctid == 0) {
                         p_stats->read_misses += 1;
-                        //fprintf(myfile0, "Read Miss\n");
                     }
                     p_stats->read_misses_combined += 1;
+
+                    log_output(0, ctid, cache_ind, tag, index, 0, 'M', 'R');
                 }
             }
 
             /* Get a replacement block */
             int block_ind = get_replacement_block(cache_ind, index);
+            log_output(1, ctid, cache_ind, tag, index, block_ind, 'M', 'R');
 
             /* Replace the block */
             cache[cache_ind].sets[index].blocks[block_ind].tag = tag;
@@ -368,7 +330,9 @@ void cache_lookup(int ctid, int cache_ind, uint64_t tag, uint64_t index,
                 cache[cache_ind].sets[index].blocks[block_ind].dirty = false;
 
             /* Update the replacement policy */
-            update_policy(cache_ind, index, block_ind);
+            update_policy(cache_ind, index, block_ind, true);
+
+            return true;
         }
     }
 
@@ -428,15 +392,78 @@ void complete_cache(cache_stats_t *p_stats) {
         cache[i].sets.clear();
     }
 
-    // fclose(myfile0);
-    // fclose(myfile1);
-    // fclose(myfile2);
-    // fclose(myfile3);
-    // fclose(myfile4);
-    // fclose(myfile5);
-    // fclose(myfile6);
-    // fclose(myfile7);
+    fclose(myfile0);
+    fclose(myfile1);
+    fclose(myfile2);
+    fclose(myfile3);
+    fclose(myfile4);
+    fclose(myfile5);
+    fclose(myfile6);
+    fclose(myfile7);
 
     cache.clear();
 
+}
+
+void log_output(int output_type, int ctid, int cache_index, uint64_t tag, 
+                uint64_t set_index, uint64_t block_index,
+                char hit_miss, char read_write) {
+
+    if (log_off)
+        return;
+
+    FILE * myfile;
+
+    switch (cache_index) {
+        case 0:
+            myfile = myfile0;
+            break;
+        case 1:
+            myfile = myfile1;
+            break;
+        case 2:
+            myfile = myfile2;
+            break;
+        case 3:
+            myfile = myfile3;
+            break;
+        case 4:
+            myfile = myfile4;
+            break;
+        case 5:
+            myfile = myfile5;
+            break;
+        case 6:
+            myfile = myfile6;
+            break;
+        case 7:
+            myfile = myfile7;
+            break;
+    }
+
+    switch (output_type) {
+        /* Print hit or miss */
+        case 0:
+            if (read_write == 'R')
+                fprintf(myfile, "R\t");
+            else
+                fprintf(myfile, "W\t");
+
+            fprintf(myfile, "Tag: %" PRIu64 "\t", tag);
+            fprintf(myfile, "Set: %" PRIu64 "\t", set_index);
+            
+            if (hit_miss == 'H') {
+                fprintf(myfile, "Block: %" PRIu64 "\t", block_index);
+                fprintf(myfile, "Hit\t");
+            }
+            else
+                fprintf(myfile, "Miss\t");
+
+            break;   
+
+        /* Print block to replace */
+        case 1:
+            fprintf(myfile, "Replace %" PRIu64 "\n", block_index);
+            break;
+    }
 }
