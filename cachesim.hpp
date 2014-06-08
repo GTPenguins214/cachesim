@@ -92,12 +92,12 @@ struct cache_block_t {
     bool valid_first;
     bool valid_second;
     int num_lru;
-    int num_fifo;
     bool mru;
 };
 
 struct cache_set_t {
     vector <cache_block_t> blocks;
+    int num_fifo;
 };
 
 struct cache_t {

@@ -39,7 +39,7 @@ uint64_t parse_address(address_t addr, char part) {
 }
 
 void update_policy(int cache_ind, uint64_t set_ind, int block_ind, bool replaced) {
-    if (info.R = true) { /* LRU */
+    if (info.R == true) { /* LRU */
         int old_lru = cache[cache_ind].sets[set_ind].blocks[block_ind].num_lru;
 
         for (int i = 0; i < info.num_blocks_set; i++) {
@@ -62,10 +62,6 @@ void update_policy(int cache_ind, uint64_t set_ind, int block_ind, bool replaced
                 cache[cache_ind].sets[set_ind].blocks[i].mru = false;
             }
         }
-        if (replaced) {
-            cache[cache_ind].sets[set_ind].blocks[block_ind].num_fifo = 
-                info.num_blocks_set -1;
-        }
     }
 }
 
@@ -83,34 +79,51 @@ int get_replacement_block(int cache_ind, uint64_t set_ind) {
         assert(false);
     }
     else { /*NMRU-FIFO */
-        int first, second, decrement_start_ind;
 
-        /* Find the index of the blocks with num_fifo=0 and 1 */
-        for (int i = 0; i < info.num_blocks_set; i++) {
-            if (cache[cache_ind].sets[set_ind].blocks[i].num_fifo == 0)
-                first = i;
-            if (cache[cache_ind].sets[set_ind].blocks[i].num_fifo == 1)
-                second = i;
-        }
-
-        decrement_start_ind = cache[cache_ind].sets[set_ind].blocks[first].mru == true ? 2 : 1;
-        for (int i = 0; i < info.num_blocks_set; i++) {
-            /* Decrement all blocks depending on whether MRU is set or not */
-            if (cache[cache_ind].sets[set_ind].blocks[i].num_fifo >= decrement_start_ind) {
-                cache[cache_ind].sets[set_ind].blocks[i].num_fifo -= 1;
-                ///printf("Changing block %d to num_fifo = %d\n", i,
-                    ///cache[cache_ind].sets[set_ind].blocks[i].num_fifo);
-            }
-        }
-
-        if (decrement_start_ind == 1) {
-            ///printf("Replace Block: %d\n", first);
-            return first;
+        //printf("Got Here 2\n");
+        /* Check if the num_fifo index is the mru */
+        int i = cache[cache_ind].sets[set_ind].num_fifo;
+        if (cache[cache_ind].sets[set_ind].blocks[i].mru) {
+            /* Take the next block and increment num_fifo by 2 */
+            cache[cache_ind].sets[set_ind].num_fifo = (cache[cache_ind].sets[set_ind].num_fifo + 2) %
+                                                        info.num_blocks_set;
+            i = (i + 1) % info.num_blocks_set;
+            return i;
         }
         else {
-            ///printf("Replace Block: %d\n", second);
-            return second;
+            cache[cache_ind].sets[set_ind].num_fifo = (cache[cache_ind].sets[set_ind].num_fifo + 1) %
+                                                        info.num_blocks_set;
+            return i;
         }
+
+    //     int first, second, decrement_start_ind;
+
+    //     /* Find the index of the blocks with num_fifo=0 and 1 */
+    //     for (int i = 0; i < info.num_blocks_set; i++) {
+    //         if (cache[cache_ind].sets[set_ind].blocks[i].num_fifo == 0)
+    //             first = i;
+    //         if (cache[cache_ind].sets[set_ind].blocks[i].num_fifo == 1)
+    //             second = i;
+    //     }
+
+    //     decrement_start_ind = cache[cache_ind].sets[set_ind].blocks[first].mru == true ? 2 : 1;
+    //     for (int i = 0; i < info.num_blocks_set; i++) {
+    //          Decrement all blocks depending on whether MRU is set or not 
+    //         if (cache[cache_ind].sets[set_ind].blocks[i].num_fifo >= decrement_start_ind) {
+    //             cache[cache_ind].sets[set_ind].blocks[i].num_fifo -= 1;
+    //             ///printf("Changing block %d to num_fifo = %d\n", i,
+    //                 ///cache[cache_ind].sets[set_ind].blocks[i].num_fifo);
+    //         }
+    //     }
+
+    //     if (decrement_start_ind == 1) {
+    //         ///printf("Replace Block: %d\n", first);
+    //         return first;
+    //     }
+    //     else {
+    //         ///printf("Replace Block: %d\n", second);
+    //         return second;
+    //     }
 
     }
 }
@@ -174,6 +187,7 @@ void setup_cache(uint64_t c, uint64_t b, uint64_t s, char st, char r) {
     vector <cache_set_t> sets(info.num_sets);
     for (int i = 0; i < info.num_sets; i++) {
         vector <cache_block_t> blocks(info.num_blocks_set);
+        sets[i].num_fifo = 0;
         sets[i].blocks = blocks;
         for (int j = 0; j < info.num_blocks_set; j++) {
             sets[i].blocks[j].tag = -1;
@@ -183,7 +197,6 @@ void setup_cache(uint64_t c, uint64_t b, uint64_t s, char st, char r) {
             sets[i].blocks[j].valid_second = false;
             sets[i].blocks[j].num_lru = 0;
             sets[i].blocks[j].mru = false;
-            sets[i].blocks[j].num_fifo = j;
         }
     }
 
@@ -191,6 +204,7 @@ void setup_cache(uint64_t c, uint64_t b, uint64_t s, char st, char r) {
 
     cache.push_back(one_cache);
 
+    //printf("Got Here\n");
 }
 
 /**
@@ -456,6 +470,8 @@ void complete_cache(cache_stats_t *p_stats) {
         cache[i].sets.clear();
     }
 
+    cache.clear();
+
     if (!log_off) {
         fclose(myfile0);
         fclose(myfile1);
@@ -467,7 +483,40 @@ void complete_cache(cache_stats_t *p_stats) {
         fclose(myfile7);
     }
 
-    cache.clear();
+    /* Calculate the stats */
+    p_stats->misses = p_stats->read_misses_combined + p_stats->write_misses_combined;
+    p_stats->miss_rate = (double) p_stats->misses / (double) p_stats->accesses;
+    p_stats->hit_time = ceil(0.2*(1 << info.S));
+
+    int num_blocks = info.num_sets*info.num_blocks_set;
+    /* WBWA contribution */
+    int overhead = num_blocks;
+    /* Storage Policy contribution */
+    if (info.ST) {
+        overhead += 2*num_blocks;
+        p_stats->miss_penalty = ceil(0.2*(1<<info.S)+50+0.25*(1 << info.B-1));
+    }
+    else {
+        overhead += num_blocks;
+        p_stats->miss_penalty = ceil(0.2*(1<<info.S)+50+0.25*(1 << info.B));
+    }
+
+    /* Replacement Policy contribution */
+    if (info.R){
+        overhead += 8*num_blocks;
+    }
+    else {
+        overhead += 2*num_blocks;
+    }
+
+    /* Tag bits contribution */
+    overhead += info.tag_bits * num_blocks;
+
+    p_stats->storage_overhead = overhead;
+    p_stats->storage_overhead_ratio = ((double) overhead / (double) 8) / 
+                                        ((double) info.total_bytes);
+
+    p_stats->avg_access_time = p_stats->hit_time + p_stats->miss_rate*p_stats->miss_penalty;
 
 }
 
