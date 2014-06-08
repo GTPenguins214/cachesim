@@ -153,15 +153,16 @@ void setup_cache(uint64_t c, uint64_t b, uint64_t s, char st, char r) {
         printf("Index Bits: %" PRIu64 "\t", info.index_bits);
         printf("Offset Bits: %" PRIu64 "\n", info.offset_bits);
 
-        myfile0 = fopen("output0.txt", "w");
-        myfile1 = fopen("output1.txt", "w");
-        myfile2 = fopen("output2.txt", "w");
-        myfile3 = fopen("output3.txt", "w");
-        myfile4 = fopen("output4.txt", "w");
-        myfile5 = fopen("output5.txt", "w");
-        myfile6 = fopen("output6.txt", "w");
-        myfile7 = fopen("output7.txt", "w");
-
+        if (!log_off) {
+            myfile0 = fopen("output0.txt", "w");
+            myfile1 = fopen("output1.txt", "w");
+            myfile2 = fopen("output2.txt", "w");
+            myfile3 = fopen("output3.txt", "w");
+            myfile4 = fopen("output4.txt", "w");
+            myfile5 = fopen("output5.txt", "w");
+            myfile6 = fopen("output6.txt", "w");
+            myfile7 = fopen("output7.txt", "w");
+        }
     }
 
     info.num_processors += 1;
@@ -263,11 +264,112 @@ void cache_access(unsigned int ctid, char rw, char numOfBytes, uint64_t address,
 bool cache_lookup(int ctid, int cache_ind, uint64_t tag, uint64_t index, 
                  uint64_t offset, cache_stats_t* p_stats, bool count_it, char rw) {
 
+    bool first = false, second = false;
     bool missed = true; /* Assume we miss */
 
     /* Check if we need half blocks */
     if (info.ST) {
 
+        /* If the offset is in the lower half then we need it */
+        if (offset < ceil(info.bytes_per_block/2)) {
+            first = true;
+        }
+
+        /* If it is in the upper half */
+        if (offset >= ceil(info.bytes_per_block/2)) {
+            second = true;
+        }
+
+        for (int i = 0; i < info.num_blocks_set; i++) {
+            /* Get the tag and cmopare */
+            if (cache[cache_ind].sets[index].blocks[i].tag == tag) {
+                if (first) { /* If we need to check the first */
+                    /* Check its validity */
+                    if (cache[cache_ind].sets[index].blocks[i].valid_first)
+                        missed = false;
+                    else {
+                        /* It's invalid so bring it in */
+                        cache[cache_ind].sets[index].blocks[i].valid_first = true;
+                        if (count_it) {
+                            if (rw == WRITE) {
+                                if (ctid == 0)
+                                    p_stats->write_misses += 1;
+                                p_stats->write_misses_combined += 1;
+                            }
+                            else {
+                                if (ctid == 0)
+                                    p_stats->read_misses += 1;
+                                p_stats->read_misses_combined += 1;
+                            }
+                            
+                        }
+                        missed = true;
+                    }
+                }
+                else { /* Only need to check the second block */
+                    /* If it is invalid then bring it in and count a miss */
+                    if (cache[cache_ind].sets[index].blocks[i].valid_second)
+                        missed = false;
+                    else {
+                        cache[cache_ind].sets[index].blocks[i].valid_second = true;
+                        if (count_it) {
+                            if (rw == WRITE) {
+                                if (ctid == 0) 
+                                    p_stats->write_misses += 1;
+                                p_stats->write_misses_combined += 1;
+                            }
+                            else {
+                                if (ctid == 0) 
+                                    p_stats->read_misses += 1;
+                                p_stats->read_misses_combined += 1;
+                            }
+                            
+                        }
+                        missed = true;
+                    }
+                }
+                update_policy(cache_ind, index, i, false);
+                return missed;
+            }
+        }
+
+        if (missed) {
+            /* Update the stats */
+            if (count_it) {
+                if (rw == WRITE) {
+                    if (ctid == 0)
+                        p_stats->write_misses += 1;
+                    p_stats->write_misses_combined += 1;
+                }
+                else {
+                    if (ctid == 0)
+                        p_stats->read_misses += 1;
+                    p_stats->read_misses_combined += 1;
+                }
+            }
+
+            /* Get a replacement block */
+            int i = get_replacement_block(cache_ind, index);
+
+            /* Replace the block */
+            cache[cache_ind].sets[index].blocks[i].tag = tag;
+            if (rw == WRITE)
+                cache[cache_ind].sets[index].blocks[i].dirty = true;
+            else
+                cache[cache_ind].sets[index].blocks[i].dirty = false;
+            
+            if (first) {
+                cache[cache_ind].sets[index].blocks[i].valid_first = true;
+                cache[cache_ind].sets[index].blocks[i].valid_second = false;
+            }
+            else {
+                cache[cache_ind].sets[index].blocks[i].valid_second = true;
+                cache[cache_ind].sets[index].blocks[i].valid_first = false;
+            }
+
+            update_policy(cache_ind, index, i, true);
+            return true;
+        }
     }
     else { /* Blocking */
 
@@ -347,44 +449,6 @@ bool cache_lookup(int ctid, int cache_ind, uint64_t tag, uint64_t index,
  */
 void complete_cache(cache_stats_t *p_stats) {
 
-    // for (int i = 0; i < info.num_processors; i++) {
-    //     printf("Cache[%d]\n", i);
-    //     for (int j = 0; j < info.num_sets; j++) {
-    //         printf("\tSet[%d]\n", j);
-    //         for (int k = 0; k < info.num_blocks_set; k++) {
-    //             printf("\t\tBlock[%d]\n", k);
-    //             printf("\t\t\tTag: %" PRIu64 "\n", cache[i].sets[j].blocks[k].tag);
-    //             if (cache[i].sets[j].blocks[k].dirty)
-    //                 printf("\t\t\tDirty: true\n");
-    //             else
-    //                 printf("\t\t\tDirty: false\n");
-
-    //             if (cache[i].sets[j].blocks[k].valid)
-    //                 printf("\t\t\tValid: true\n");
-    //             else
-    //                 printf("\t\t\tValid: false\n");
-
-    //             if (cache[i].sets[j].blocks[k].valid_first)
-    //                 printf("\t\t\tValid_First: true\n");
-    //             else
-    //                 printf("\t\t\tValid_First: false\n");
-
-    //             if (cache[i].sets[j].blocks[k].valid_first)
-    //                 printf("\t\t\tValid_Second: true\n");
-    //             else
-    //                 printf("\t\t\tValid_Second: false\n");
-
-    //             printf("\t\t\tLRU: %d\n", cache[i].sets[j].blocks[k].num_lru);
-    //             printf("\t\t\tFIFO: %d\n", cache[i].sets[j].blocks[k].num_fifo);
-    //             if (cache[i].sets[j].blocks[k].mru)
-    //                 printf("\t\t\tMRU: true\n");
-    //             else
-    //                 printf("\t\t\tMRU: false\n");
-
-    //         }
-    //     }
-    // }
-
     for (int i = 0; i < info.num_processors; i++) {
         for (int j = 0; j < info.num_sets; j++) {
             cache[i].sets[j].blocks.clear();
@@ -392,14 +456,16 @@ void complete_cache(cache_stats_t *p_stats) {
         cache[i].sets.clear();
     }
 
-    fclose(myfile0);
-    fclose(myfile1);
-    fclose(myfile2);
-    fclose(myfile3);
-    fclose(myfile4);
-    fclose(myfile5);
-    fclose(myfile6);
-    fclose(myfile7);
+    if (!log_off) {
+        fclose(myfile0);
+        fclose(myfile1);
+        fclose(myfile2);
+        fclose(myfile3);
+        fclose(myfile4);
+        fclose(myfile5);
+        fclose(myfile6);
+        fclose(myfile7);
+    }
 
     cache.clear();
 
