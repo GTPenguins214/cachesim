@@ -119,6 +119,8 @@ int main(int argc, char* argv[]) {
 
     print_statistics(&stats);
 
+    printf("-----------------------------------------------------------\n");
+
     return 0;
 }
 

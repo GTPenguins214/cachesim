@@ -164,7 +164,7 @@ void setup_cache(uint64_t c, uint64_t b, uint64_t s, char st, char r) {
         printf("Num Lines %" PRIu64 "\n", info.num_sets);
         printf("Tag Bits: %" PRIu64 "\t", info.tag_bits);
         printf("Index Bits: %" PRIu64 "\t", info.index_bits);
-        printf("Offset Bits: %" PRIu64 "\n", info.offset_bits);
+        printf("Offset Bits: %" PRIu64 "\n\n", info.offset_bits);
 
         if (!log_off) {
             myfile0 = fopen("output0.txt", "w");
@@ -517,6 +517,9 @@ void complete_cache(cache_stats_t *p_stats) {
                                         ((double) info.total_bytes);
 
     p_stats->avg_access_time = p_stats->hit_time + p_stats->miss_rate*p_stats->miss_penalty;
+
+    printf("Number of Processors: %d\n", info.num_processors);
+    printf("Total Size: %" PRIu64 "\n\n", (p_stats->storage_overhead+info.total_bytes)*((uint64_t) info.num_processors));
 
 }
 

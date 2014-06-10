@@ -1,0 +1,15 @@
+# d.taskgraph
+./cachesim -c 14 -b 6 -s 2 -t B -r L -f traces/d.taskgraph > outd.txt
+./cachesim -c 11 -b 6 -s 2 -t B -r L -f traces/d.taskgraph >> outd.txt
+./cachesim -c 11 -b 6 -s 2 -t B -r F -f traces/d.taskgraph >> outd.txt
+./cachesim -c 11 -b 6 -s 2 -t SB -r L -f traces/d.taskgraph >> outd.txt
+./cachesim -c 11 -b 6 -s 1 -t B -r L -f traces/d.taskgraph >> outd.txt
+./cachesim -c 11 -b 6 -s 3 -t B -r L -f traces/d.taskgraph >> outd.txt
+./cachesim -c 11 -b 6 -s 4 -t B -r L -f traces/d.taskgraph >> outd.txt
+./cachesim -c 11 -b 5 -s 2 -t B -r L -f traces/d.taskgraph >> outd.txt
+./cachesim -c 11 -b 6 -s 2 -t B -r L -f traces/d.taskgraph >> outd.txt
+./cachesim -c 11 -b 7 -s 2 -t B -r L -f traces/d.taskgraph >> outd.txt
+./cachesim -c 11 -b 4 -s 2 -t B -r L -f traces/d.taskgraph >> outd.txt
+./cachesim -c 11 -b 5 -s 3 -t B -r L -f traces/d.taskgraph >> outd.txt
+./cachesim -c 11 -b 5 -s 1 -t B -r L -f traces/d.taskgraph >> outd.txt
+./cachesim -c 10 -b 4 -s 2 -t B -r L -f traces/d.taskgraph >> outd.txt
